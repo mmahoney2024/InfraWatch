@@ -6,6 +6,7 @@
     <ProjectReference Include="..\InfraWatch.Engine\InfraWatch.Engine.csproj" />
     <ProjectReference Include="..\Collectors\InfraWatch.Collectors.HostNet\InfraWatch.Collectors.HostNet.csproj" />
     <ProjectReference Include="..\Integrations\InfraWatch.Integrations.Jira\InfraWatch.Integrations.Jira.csproj" />
+    <ProjectReference Include="..\InfraWatch.Alerting\InfraWatch.Alerting.csproj" />
   </ItemGroup>
 
   <PropertyGroup>

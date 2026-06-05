@@ -11,6 +11,7 @@ public static class ServiceCollectionExtensions
     /// </summary>
     public static IServiceCollection AddEngine(this IServiceCollection services)
     {
+        services.AddSingleton<AlertEvaluator>();
         services.AddHostedService<CollectorScheduler>();
         return services;
     }

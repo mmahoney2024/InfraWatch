@@ -129,17 +129,20 @@ collector host and web host are separate machines sharing a database. Full steps
   isolates failures.
 - ✅ **HostNet collector** — ICMP latency + TLS cert expiry (verified live).
 - ✅ **Jira integration** — REST client + JQL for all six widgets across IMS/CHG/CSI;
-  degrades to "not configured" without a token.
+  validated against the live instance. "Unanswered" uses agent-comment detection
+  (`accountType == "atlassian"`), ignoring automation/customer replies.
+- ✅ **Alerting** — `TeamsAlertChannel` (webhook) + `EmailAlertChannel` (SMTP), driven by
+  the engine's `AlertEvaluator` (fires on transition into Critical, seeded at startup);
+  end-to-end dispatch verified. No-ops until configured.
 - ✅ **Web** — ASP.NET Core host that runs the engine in-process and renders the dashboard
   (tiles + Jira widgets + inline SVG trend chart + timeclock alert); `UseWindowsService()`.
 
 Next steps, in order:
 
-1. **Exercise the Jira live path** — supply an API token (user-secret) and validate the
-   six widgets against the real instance; refine "unanswered" with the comment check.
-2. **Alerting + Docs + Service** — implement the remaining placeholder projects (e.g. push
-   the timeclock alert to Teams/email; render inventory to Markdown).
-3. **Phase 1 pillars** — read-only health for DNS, AD, Hyper-V, Veeam (per `CONCEPT.md` §8).
-4. **Deploy** — publish and install as a Windows service per [`DEPLOYMENT.md`](DEPLOYMENT.md).
+1. **Docs + Service projects** — render inventory/history to Markdown/PDF; add the
+   split-deployment `Service` host.
+2. **Phase 1 pillars** — read-only health for DNS, AD, Hyper-V, Veeam (per `CONCEPT.md` §8).
+3. **Deploy** — publish and install as a Windows service per [`DEPLOYMENT.md`](DEPLOYMENT.md);
+   supply Jira token + alert webhook/SMTP as secrets.
 
 See [`CONCEPT.md`](CONCEPT.md) §8 for the full phased rollout.

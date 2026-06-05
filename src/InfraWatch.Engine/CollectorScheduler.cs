@@ -13,19 +13,25 @@ public sealed class CollectorScheduler : BackgroundService
 {
     private readonly IReadOnlyList<ICollector> _collectors;
     private readonly IStore _store;
+    private readonly AlertEvaluator _alerts;
     private readonly ILogger<CollectorScheduler> _logger;
 
     public CollectorScheduler(
-        IEnumerable<ICollector> collectors, IStore store, ILogger<CollectorScheduler> logger)
+        IEnumerable<ICollector> collectors, IStore store,
+        AlertEvaluator alerts, ILogger<CollectorScheduler> logger)
     {
         _collectors = collectors.ToList();
         _store = store;
+        _alerts = alerts;
         _logger = logger;
     }
 
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
     {
         await _store.InitializeAsync(stoppingToken);
+
+        // Seed alert state from the last known health so a restart doesn't re-alert.
+        _alerts.Seed(await _store.GetLatestHealthAsync(stoppingToken));
 
         if (_collectors.Count == 0)
         {
@@ -65,7 +71,10 @@ public sealed class CollectorScheduler : BackgroundService
             var result = await collector.CollectAsync(ct);
 
             if (result.Health.Count > 0)
+            {
                 await _store.SaveHealthAsync(result.Health, ct);
+                await _alerts.EvaluateAsync(result.Health, ct);
+            }
             if (result.Inventory.Count > 0)
                 await _store.SaveInventoryAsync(result.Inventory, ct);
 

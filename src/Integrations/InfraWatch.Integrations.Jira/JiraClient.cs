@@ -17,6 +17,10 @@ public sealed class JiraClient
     private static readonly string[] IssueFields =
         ["summary", "status", "priority", "assignee", "created", "project", "resolutiondate"];
 
+    // Unanswered detection also needs the comments (to inspect author account types).
+    private static readonly string[] UnansweredFields =
+        ["summary", "status", "priority", "assignee", "created", "project", "comment"];
+
     private readonly HttpClient _http;
     private readonly JiraOptions _options;
 
@@ -42,8 +46,27 @@ public sealed class JiraClient
     public async Task<List<JiraIssue>> SearchIssuesAsync(string jql, int cap, CancellationToken ct)
     {
         var issues = new List<JiraIssue>();
-        await foreach (var el in EnumerateAsync(jql, cap, ct))
+        await foreach (var el in EnumerateAsync(jql, cap, IssueFields, ct))
             issues.Add(MapIssue(el));
+        return issues;
+    }
+
+    /// <summary>
+    /// Search for unanswered issues: candidates from the JQL, then keep only those with no
+    /// public reply from anyone other than the reporter (a proxy for "first response not
+    /// sent"). Over-fetches candidates because some are filtered out as answered.
+    /// </summary>
+    public async Task<List<JiraIssue>> SearchUnansweredAsync(string jql, int cap, CancellationToken ct)
+    {
+        var buffer = Math.Min(HardCap, Math.Max(cap * 5, 50));
+        var issues = new List<JiraIssue>();
+        await foreach (var el in EnumerateAsync(jql, buffer, UnansweredFields, ct))
+        {
+            if (IsUnanswered(el))
+                issues.Add(MapIssue(el));
+            if (issues.Count >= cap)
+                break;
+        }
         return issues;
     }
 
@@ -51,7 +74,7 @@ public sealed class JiraClient
     public async Task<List<DateTimeOffset>> SearchDatesAsync(string jql, string field, int cap, CancellationToken ct)
     {
         var dates = new List<DateTimeOffset>();
-        await foreach (var el in EnumerateAsync(jql, cap, ct))
+        await foreach (var el in EnumerateAsync(jql, cap, [field], ct))
         {
             if (el.TryGetProperty("fields", out var f)
                 && f.TryGetProperty(field, out var d)
@@ -65,7 +88,8 @@ public sealed class JiraClient
     }
 
     private async IAsyncEnumerable<JsonElement> EnumerateAsync(
-        string jql, int cap, [System.Runtime.CompilerServices.EnumeratorCancellation] CancellationToken ct)
+        string jql, int cap, string[] fields,
+        [System.Runtime.CompilerServices.EnumeratorCancellation] CancellationToken ct)
     {
         cap = Math.Min(cap, HardCap);
         string? pageToken = null;
@@ -77,7 +101,7 @@ public sealed class JiraClient
             {
                 jql,
                 maxResults = Math.Min(PageSize, cap - fetched),
-                fields = IssueFields,
+                fields,
                 nextPageToken = pageToken,
             };
 
@@ -140,6 +164,33 @@ public sealed class JiraClient
         var url = $"{_options.BaseUrl.TrimEnd('/')}/browse/{key}";
 
         return new JiraIssue(key, summary, project, status, statusCategory, priority, assignee, created, ageHours, url);
+    }
+
+    /// <summary>
+    /// True when no real <em>agent</em> has commented yet — our proxy for "first response not
+    /// sent". A reply counts only if its author is an agent (Jira <c>accountType</c> ==
+    /// "atlassian"); automation ("app") and customer ("customer") comments are ignored, since
+    /// JSM desks auto-reply on creation. Note: the search API may return only a subset of
+    /// comments; for full fidelity the JSM first-response SLA would be the production signal.
+    /// </summary>
+    private static bool IsUnanswered(JsonElement issue)
+    {
+        if (!issue.TryGetProperty("fields", out var f)
+            || !f.TryGetProperty("comment", out var c) || c.ValueKind != JsonValueKind.Object
+            || !c.TryGetProperty("comments", out var comments) || comments.ValueKind != JsonValueKind.Array)
+        {
+            return true; // no comments at all -> awaiting first response
+        }
+
+        foreach (var comment in comments.EnumerateArray())
+        {
+            if (comment.TryGetProperty("author", out var a) && a.ValueKind == JsonValueKind.Object
+                && Str(a, "accountType") == "atlassian")
+            {
+                return false; // a real agent has replied -> answered
+            }
+        }
+        return true; // only automation / customer comments -> still awaiting an agent
     }
 
     private static string? Str(JsonElement obj, string prop) =>

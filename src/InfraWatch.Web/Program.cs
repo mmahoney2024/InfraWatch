@@ -1,3 +1,4 @@
+using InfraWatch.Alerting;
 using InfraWatch.Collectors.HostNet;
 using InfraWatch.Core;
 using InfraWatch.Engine;
@@ -18,6 +19,7 @@ builder.Services.AddSqliteStore(o =>
         o.DatabasePath = path;
 });
 builder.Services.AddEngine();
+builder.Services.AddAlerting(builder.Configuration);
 builder.Services.AddHostNetCollector(builder.Configuration);
 builder.Services.AddJiraIntegration(builder.Configuration);
 

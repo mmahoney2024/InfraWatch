@@ -33,10 +33,12 @@ These are the assumptions baked into the JQL; all are configurable.
 
 - **Open** — `statusCategory != Done`. In IMS that means *Waiting for support* /
   *In Progress*, i.e. not *Resolved* and not *Closed*.
-- **Unanswered** — open, **older than 24h**, and **no public agent comment yet**
-  (proxy for "first response not sent"). The coarse JQL filter is status
-  `"Waiting for support"` + age; the comment check is refined in code via the issue
-  changelog/comments, since JQL alone can't assert "no agent has replied."
+- **Unanswered** — open, status `"Waiting for support"`, **older than 24h**, and **no
+  agent has replied yet**. JQL gives the candidates (status + age); the code then keeps
+  only those with no comment from a real agent — a comment counts as a reply only when its
+  author's Jira `accountType` is `atlassian`, so JSM **automation** (`app`) auto-replies
+  and **customer** (`customer`) comments are correctly ignored. (Production-grade option:
+  the JSM "Time to first response" SLA field.)
 - **Pressing** — open and high urgency: priority `High`/`Highest`, then oldest first.
 - **Timeclock ticket** — summary or description matches `timeclock` **or** `time clock`.
   There is **no dedicated label or component** for these in IMS today — it is a keyword
@@ -58,15 +60,15 @@ ORDER BY priority DESC, created ASC
 ```
 
 ### 3.3 Unanswered tickets > 1 day old
-Open tickets aging without a first response.
+Open tickets aging without a first **agent** response.
 ```sql
 project in (IMS, CHG, CSI) AND statusCategory != Done
   AND status = "Waiting for support"
   AND created <= -1d
 ORDER BY created ASC
 ```
-Then drop any issue that already has a public agent comment (changelog/comment check in
-code). Shown as a list with age badges.
+Then drop any issue that already has a comment from an agent (`accountType == "atlassian"`);
+automation and customer comments don't count. Shown as a list with age badges.
 
 ### 3.4 Line graph — open vs closed this month
 Daily **created** vs **resolved** counts for the current month.

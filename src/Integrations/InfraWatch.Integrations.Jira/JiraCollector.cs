@@ -64,7 +64,7 @@ public sealed class JiraCollector : ICollector
         var resolvedMtd = await _client.CountAsync(resolvedMtdJql, cancellationToken);
 
         var pressing = await _client.SearchIssuesAsync(pressingJql, _options.MaxPressing, cancellationToken);
-        var unanswered = await _client.SearchIssuesAsync(unansweredJql, _options.MaxUnanswered, cancellationToken);
+        var unanswered = await _client.SearchUnansweredAsync(unansweredJql, _options.MaxUnanswered, cancellationToken);
         var timeclockIssues = await _client.SearchIssuesAsync(timeclockJql, _options.MaxTimeclock, cancellationToken);
 
         var createdDates = await _client.SearchDatesAsync(createdMtdJql, "created", 2000, cancellationToken);

@@ -57,6 +57,9 @@ secrets.json
 *.key
 .env
 .env.*
+# Local token / secret scratch files
+*[Tt]oken*.txt
+*[Ss]ecret*.txt
 
 # OS
 Thumbs.db
