@@ -43,10 +43,17 @@ public sealed class EmailAlertChannel : IAlertChannel
             using var client = new SmtpClient(_options.Host, _options.Port)
             {
                 EnableSsl = _options.UseSsl,
-                Credentials = string.IsNullOrWhiteSpace(_options.Username)
-                    ? CredentialCache.DefaultNetworkCredentials
-                    : new NetworkCredential(_options.Username, _options.Password),
             };
+            if (string.IsNullOrWhiteSpace(_options.Username))
+            {
+                // Anonymous send (e.g. Microsoft 365 "Direct Send") — no login, so MFA
+                // never applies. Delivers to internal recipients without credentials.
+                client.UseDefaultCredentials = false;
+            }
+            else
+            {
+                client.Credentials = new NetworkCredential(_options.Username, _options.Password);
+            }
 
             await client.SendMailAsync(message, cancellationToken);
             _logger.LogInformation("Email alert sent to {Count} recipient(s): {Title}",
