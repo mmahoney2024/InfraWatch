@@ -18,5 +18,5 @@ store, and lets the engine raise the **timeclock alert**.
 **Access method:** Jira Cloud REST API v3, HTTP Basic auth (`email:api-token`).
 
 **Privileges required:** a least-privilege Jira account with **read** (`read:jira-work`)
-on the configured projects (default: `IMS`). API token stored as a secret, never in
+on the configured projects (default: `IMS`, `CHG`, `CSI`). API token stored as a secret, never in
 source (see [`docs/DEPLOYMENT.md`](../../../docs/DEPLOYMENT.md#5-service-account--secrets)).

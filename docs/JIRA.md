@@ -14,11 +14,11 @@ grounded in the **`sscserv.atlassian.net`** instance and the **IMS** service des
 |---|---|
 | Site | `https://sscserv.atlassian.net` |
 | Cloud ID | `abefebe5-f2a3-49ce-8cad-8db0e08a9ead` |
-| Primary project | **IMS** (Jira Service Management — the live IT helpdesk) |
-| Other live desks | CHG (Change Mgmt), CSI, CS (Customer Service) — optional, off by default |
+| Projects covered | **IMS** (IT helpdesk), **CHG** (Change Mgmt), **CSI** (CSI Refreshe) |
+| Other live desk | CS (Customer Service) — available, off by default |
 | Excluded | KAN / MDP / PBV (appear to be demo/sandbox projects) |
 
-Which projects feed the widgets is **configurable**; the default is `IMS` only.
+Which projects feed the widgets is **configurable**; the default set is `IMS, CHG, CSI`.
 
 ### Auth
 
@@ -53,14 +53,14 @@ for the configured projects. Click to drill into the lists below.
 ### 3.2 Most pressing tickets
 Top N (default 10) open tickets, highest urgency and oldest first.
 ```sql
-project = IMS AND statusCategory != Done
+project in (IMS, CHG, CSI) AND statusCategory != Done
 ORDER BY priority DESC, created ASC
 ```
 
 ### 3.3 Unanswered tickets > 1 day old
 Open tickets aging without a first response.
 ```sql
-project = IMS AND statusCategory != Done
+project in (IMS, CHG, CSI) AND statusCategory != Done
   AND status = "Waiting for support"
   AND created <= -1d
 ORDER BY created ASC
@@ -72,23 +72,23 @@ code). Shown as a list with age badges.
 Daily **created** vs **resolved** counts for the current month.
 ```sql
 -- created per day this month
-project = IMS AND created >= startOfMonth()
+project in (IMS, CHG, CSI) AND created >= startOfMonth()
 -- resolved per day this month
-project = IMS AND resolved >= startOfMonth()
+project in (IMS, CHG, CSI) AND resolved >= startOfMonth()
 ```
 Backed by daily snapshots in the InfraWatch store, so the trend keeps building over time
 (the append-only store is exactly what this needs — see `ARCHITECTURE.md`).
 
 ### 3.5 Total tickets this month (stat)
 ```sql
-project = IMS AND created >= startOfMonth()
+project in (IMS, CHG, CSI) AND created >= startOfMonth()
 ```
 Single headline number, with prior-month delta.
 
 ### 3.6 Timeclock alert ⏰ (RED tile)
 Fires if **any** open timeclock ticket is unaddressed.
 ```sql
-project = IMS AND statusCategory != Done
+project in (IMS, CHG, CSI) AND statusCategory != Done
   AND (summary ~ "timeclock" OR summary ~ "time clock"
        OR description ~ "timeclock" OR description ~ "time clock")
 ORDER BY created ASC
@@ -110,7 +110,7 @@ Config (illustrative — secrets injected separately):
 ```jsonc
 "Jira": {
   "BaseUrl": "https://sscserv.atlassian.net",
-  "Projects": [ "IMS" ],
+  "Projects": [ "IMS", "CHG", "CSI" ],
   "PollIntervalMinutes": 5,
   "UnansweredAgeHours": 24,
   "PressingPriorities": [ "Highest", "High" ],
@@ -120,7 +120,7 @@ Config (illustrative — secrets injected separately):
 
 ## 5. Open questions for you
 
-- Include **CHG / CSI / CS** in the widgets, or **IMS only**? (default: IMS only)
+- Projects covered: **IMS + CHG + CSI** (decided 2026-06-05). Add **CS** too? (default: no)
 - "Unanswered" = *no agent comment in 24h*, or simply *still "Waiting for support" after
   24h*? (default: no agent comment)
 - Should the timeclock alert also push to a channel (Teams/email), or just light up the

@@ -79,7 +79,7 @@ disable a pillar we don't have access to yet.
 
 | Project | Source | Access method |
 |---|---|---|
-| `InfraWatch.Integrations.Jira` | Jira Cloud (`sscserv.atlassian.net`, project `IMS`) | REST API v3, Basic auth (`email:api-token`) |
+| `InfraWatch.Integrations.Jira` | Jira Cloud (`sscserv.atlassian.net`, projects `IMS`, `CHG`, `CSI`) | REST API v3, Basic auth (`email:api-token`) |
 
 Integrations are non-infra data sources that still feed the dashboard. Jira polls the
 service desk on a schedule and emits counts + issue lists + a timeclock alert. Full spec
