@@ -14,7 +14,9 @@ See [`docs/CONCEPT.md`](docs/CONCEPT.md) for the full proposal,
 [`docs/JIRA.md`](docs/JIRA.md) for the Jira dashboard integration, and
 [`docs/DEPLOYMENT.md`](docs/DEPLOYMENT.md) for installing it on a Windows server.
 
-> **Status:** Phase 0 — project skeleton. No functional collectors yet.
+> **Status:** Phase 0 — **walking skeleton runs end-to-end.** `Core → SQLite → engine →
+> HostNet collector → web dashboard`, with the Jira integration wired in (degrades to
+> "not configured" until an API token is supplied). Other pillars are still placeholders.
 
 ---
 
@@ -84,21 +86,32 @@ InfraWatch/
     └── InfraWatch.Tests/
 ```
 
-Each folder currently holds a `README.md` describing its responsibility. The `.csproj`
-projects and `InfraWatch.sln` are added in the next step (see
-[`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md#status--next-steps)).
+Each project has a `README.md` describing its responsibility. The solution
+(`InfraWatch.sln`) and the implemented projects (Core, Storage, Engine, HostNet, Jira,
+Web, Tests) now exist; the remaining pillars/Alerting/Docs/Service are still
+README-only placeholders.
 
 ## Getting started (developers)
 
 Prerequisites:
 
-- [.NET SDK](https://dotnet.microsoft.com/download) 9.0 or later
+- [.NET SDK](https://dotnet.microsoft.com/download) 9.0 or later (pinned to 9.0.314 in `global.json`)
 - Windows (most pillars are Windows-native: CIM/WMI + PowerShell)
 
 ```powershell
-# once projects exist:
 dotnet build
 dotnet test
+dotnet run --project src/InfraWatch.Web --urls http://localhost:8080
+# then open http://localhost:8080
+```
+
+The web app hosts the collector engine in-process, so running it starts monitoring and
+serves the dashboard. HostNet works with no credentials. To light up the Jira widgets,
+set the Jira secret (never commit it):
+
+```powershell
+dotnet user-secrets --project src/InfraWatch.Web set "Jira:Email" "you@sscserv.com"
+dotnet user-secrets --project src/InfraWatch.Web set "Jira:ApiToken" "<your-api-token>"
 ```
 
 ## Guardrails (read before pointing this at production)

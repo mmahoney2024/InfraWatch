@@ -119,20 +119,27 @@ collector host and web host are separate machines sharing a database. Full steps
 
 ## 4. Status & next steps
 
-**Status: Phase 0 — skeleton.** Folder structure + docs are in place. No `.csproj`
-projects or functional code yet.
+**Status: Phase 0 — walking skeleton runs end-to-end.** Done:
+
+- ✅ Solution + projects scaffolded (`global.json` pins SDK 9.0.314); references wired.
+- ✅ **Core** — `HealthRecord`, `InventoryRecord`, `HealthStatus`, `ICollector`, `IStore`,
+  `IAlertChannel`.
+- ✅ **Storage** — append-only SQLite store (current-state + history + detail JSON), unit-tested.
+- ✅ **Engine** — hosted scheduler runs each collector on its interval, persists results,
+  isolates failures.
+- ✅ **HostNet collector** — ICMP latency + TLS cert expiry (verified live).
+- ✅ **Jira integration** — REST client + JQL for all six widgets across IMS/CHG/CSI;
+  degrades to "not configured" without a token.
+- ✅ **Web** — ASP.NET Core host that runs the engine in-process and renders the dashboard
+  (tiles + Jira widgets + inline SVG trend chart + timeclock alert); `UseWindowsService()`.
 
 Next steps, in order:
 
-1. **Scaffold the solution** — `dotnet new sln`; create each project above as a
-   `classlib` (or `worker` for Service, `web` for Web); wire project references per the
-   dependency table.
-2. **Define Core** — `HealthRecord`, `InventoryRecord`, severity, `ICollector`,
-   `IStore`, `IAlertChannel`.
-3. **Walking skeleton** — implement `InfraWatch.Collectors.HostNet` (ping + TLS expiry) →
-   SQLite store → engine schedule → one dashboard tile. Prove the architecture
-   end-to-end before widening to other pillars.
-4. **Phase 1** — read-only health for DNS, AD, Hyper-V, Veeam + dashboard + alerting
-   (per `CONCEPT.md` §8).
+1. **Exercise the Jira live path** — supply an API token (user-secret) and validate the
+   six widgets against the real instance; refine "unanswered" with the comment check.
+2. **Alerting + Docs + Service** — implement the remaining placeholder projects (e.g. push
+   the timeclock alert to Teams/email; render inventory to Markdown).
+3. **Phase 1 pillars** — read-only health for DNS, AD, Hyper-V, Veeam (per `CONCEPT.md` §8).
+4. **Deploy** — publish and install as a Windows service per [`DEPLOYMENT.md`](DEPLOYMENT.md).
 
 See [`CONCEPT.md`](CONCEPT.md) §8 for the full phased rollout.
