@@ -139,6 +139,9 @@ collector host and web host are separate machines sharing a database. Full steps
   running); unreachable hosts correctly flagged Critical.
 - ✅ **SMB collector** — per-share access-check (connect/auth/list latency, opt-in canary
   write) + per-host share enumeration (WMI) for inventory. Verified live against `fs-aio`.
+- ✅ **DHCP collector** — per server (DhcpServer PowerShell module): service reachability +
+  per-scope pool pressure (% in use); scope inventory. Verified live against `fs-dhcp05` +
+  `fsdhcp03` (failover pair).
 - ✅ **Roll-up / drill-down dashboard** — overview tiles → pillar (checks + inventory) →
   check (latest + value sparkline + history), with breadcrumbs.
 - ✅ **Pillar-generic dashboard** — tiles + check tables render per infra pillar present, so
