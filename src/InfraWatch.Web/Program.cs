@@ -34,10 +34,12 @@ builder.Services.AddJiraIntegration(builder.Configuration);
 var app = builder.Build();
 
 // One pane of glass.
-app.MapGet("/", async (IStore store, JiraSnapshotCache jira) =>
+app.MapGet("/", async (HttpContext http, IStore store, JiraSnapshotCache jira) =>
 {
     var health = await store.GetLatestHealthAsync();
-    return Results.Content(DashboardRenderer.Render(health, jira.Current), "text/html");
+    var dark = http.Request.Cookies.TryGetValue("iw-theme", out var t)
+               && string.Equals(t, "dark", StringComparison.OrdinalIgnoreCase);
+    return Results.Content(DashboardRenderer.Render(health, jira.Current, dark), "text/html");
 });
 
 // Machine-readable state, handy for debugging / a future SPA.

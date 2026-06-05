@@ -12,46 +12,56 @@ namespace InfraWatch.Web;
 /// </summary>
 public static class DashboardRenderer
 {
-    public static string Render(IReadOnlyList<HealthRecord> health, JiraDashboard jira)
+    public static string Render(IReadOnlyList<HealthRecord> health, JiraDashboard jira, bool dark = false)
     {
+        var theme = dark ? "dark" : "light";
+        var themeIcon = dark ? "☀" : "🌙";
+
         var sb = new StringBuilder();
+        sb.Append($"<!doctype html><html lang=\"en\" data-theme=\"{theme}\">");
         sb.Append("""
-            <!doctype html><html lang="en"><head><meta charset="utf-8">
+            <head><meta charset="utf-8">
             <meta name="viewport" content="width=device-width, initial-scale=1">
             <meta http-equiv="refresh" content="30">
             <title>InfraWatch</title>
             <style>
-            :root{--ok:#1f9d55;--warn:#d9a200;--crit:#d23b3b;--unk:#8a909a;--ink:#1b2430;--bg:#f4f6f9;--card:#fff;--line:#e3e8ee}
+            :root{--ok:#1f9d55;--warn:#d9a200;--crit:#d23b3b;--unk:#8a909a;--ink:#1b2430;--bg:#f4f6f9;--card:#fff;--line:#e3e8ee;--header:#1b2430;--muted:#6b7480;--muted2:#5a6573}
+            html[data-theme="dark"]{--ink:#e6e9ee;--bg:#0f141a;--card:#1a212b;--line:#2a323d;--muted:#9aa4b1;--muted2:#aab3c0}
             *{box-sizing:border-box}body{margin:0;font:14px/1.45 -apple-system,Segoe UI,Roboto,Arial,sans-serif;background:var(--bg);color:var(--ink)}
-            header{background:var(--ink);color:#fff;padding:14px 22px;display:flex;align-items:baseline;gap:14px}
+            header{background:var(--header);color:#fff;padding:14px 22px;display:flex;align-items:center;gap:14px}
             header h1{font-size:18px;margin:0;letter-spacing:.3px}header .sub{color:#9fb0c3;font-size:12px}
+            .themeBtn{margin-left:auto;background:transparent;border:1px solid #ffffff55;color:#fff;border-radius:6px;padding:4px 10px;font-size:15px;line-height:1;cursor:pointer}
+            .themeBtn:hover{background:#ffffff22}
             main{max-width:1100px;margin:0 auto;padding:20px}
-            h2{font-size:13px;text-transform:uppercase;letter-spacing:.6px;color:#5a6573;margin:26px 0 10px}
+            h2{font-size:13px;text-transform:uppercase;letter-spacing:.6px;color:var(--muted2);margin:26px 0 10px}
             .tiles{display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:12px}
             .tile{background:var(--card);border:1px solid var(--line);border-left-width:5px;border-radius:8px;padding:14px}
-            .tile .name{font-weight:600;font-size:13px;color:#5a6573;text-transform:uppercase;letter-spacing:.4px}
-            .tile .big{font-size:22px;font-weight:700;margin:6px 0 2px}.tile .det{font-size:12px;color:#6b7480}
+            .tile .name{font-weight:600;font-size:13px;color:var(--muted2);text-transform:uppercase;letter-spacing:.4px}
+            .tile .big{font-size:22px;font-weight:700;margin:6px 0 2px}.tile .det{font-size:12px;color:var(--muted)}
             .ok{border-left-color:var(--ok)}.warn{border-left-color:var(--warn)}.crit{border-left-color:var(--crit)}.unknown{border-left-color:var(--unk)}
             .dot{display:inline-block;width:9px;height:9px;border-radius:50%;margin-right:6px;vertical-align:middle}
             .d-ok{background:var(--ok)}.d-warn{background:var(--warn)}.d-crit{background:var(--crit)}.d-unknown{background:var(--unk)}
             .stats{display:flex;gap:12px;flex-wrap:wrap}.stat{background:var(--card);border:1px solid var(--line);border-radius:8px;padding:12px 16px;min-width:120px}
-            .stat .n{font-size:24px;font-weight:700}.stat .l{font-size:12px;color:#6b7480}
+            .stat .n{font-size:24px;font-weight:700}.stat .l{font-size:12px;color:var(--muted)}
             .card{background:var(--card);border:1px solid var(--line);border-radius:8px;padding:14px 16px;margin-top:12px}
             table{width:100%;border-collapse:collapse;font-size:13px}th,td{text-align:left;padding:7px 8px;border-bottom:1px solid var(--line)}
-            th{color:#6b7480;font-weight:600;font-size:11px;text-transform:uppercase;letter-spacing:.4px}
-            td.k a{color:#2b6cb0;text-decoration:none;font-weight:600}td.k a:hover{text-decoration:underline}
+            th{color:var(--muted);font-weight:600;font-size:11px;text-transform:uppercase;letter-spacing:.4px}
+            td.k a{color:#4a90d9;text-decoration:none;font-weight:600}td.k a:hover{text-decoration:underline}
             .pill{display:inline-block;padding:1px 8px;border-radius:10px;font-size:11px;font-weight:600}
             .pill.crit{background:#fbe4e4;color:#a12020}.pill.warn{background:#fbf1d6;color:#8a6a00}.pill.ok{background:#e0f1e6;color:#1c6b3c}.pill.unknown{background:#eceef1;color:#5a6573}
             .alert{background:#fbe4e4;border:1px solid #f0bcbc;border-left:5px solid var(--crit);border-radius:8px;padding:12px 16px;margin-top:12px;color:#7a1d1d;font-weight:600}
             .notice{background:#fff8e6;border:1px solid #efdca0;border-radius:8px;padding:12px 16px;color:#6a5500}
-            .muted{color:#8a909a}footer{max-width:1100px;margin:18px auto 40px;padding:0 20px;color:#9098a3;font-size:12px}
-            svg{max-width:100%}.legend{font-size:12px;color:#6b7480;margin-top:6px}.legend b{font-weight:600}
+            .muted{color:var(--muted)}footer{max-width:1100px;margin:18px auto 40px;padding:0 20px;color:var(--muted);font-size:12px}
+            svg{max-width:100%}.legend{font-size:12px;color:var(--muted);margin-top:6px}.legend b{font-weight:600}
             .sw{display:inline-block;width:11px;height:3px;vertical-align:middle;margin:0 4px 0 12px}
             </style></head><body>
             """);
 
         var now = DateTimeOffset.Now.ToString("yyyy-MM-dd HH:mm:ss");
-        sb.Append($"<header><h1>InfraWatch</h1><span class=\"sub\">one pane of glass · generated {now} · auto-refresh 30s</span></header><main>");
+        sb.Append($"<header><h1>InfraWatch</h1><span class=\"sub\">one pane of glass · generated {now} · auto-refresh 30s</span>");
+        sb.Append($"<button id=\"themeBtn\" class=\"themeBtn\" onclick=\"iwToggleTheme()\" title=\"Toggle dark mode\">{themeIcon}</button></header>");
+        sb.Append("<script>function iwToggleTheme(){var d=document.documentElement.getAttribute('data-theme')!=='dark';document.documentElement.setAttribute('data-theme',d?'dark':'light');document.cookie='iw-theme='+(d?'dark':'light')+';path=/;max-age=31536000;samesite=lax';document.getElementById('themeBtn').textContent=d?'☀':'🌙';}</script>");
+        sb.Append("<main>");
 
         RenderTiles(sb, health, jira);
         RenderJira(sb, jira);
