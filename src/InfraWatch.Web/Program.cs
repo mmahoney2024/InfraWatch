@@ -41,4 +41,28 @@ app.MapGet("/api/state", async (IStore store, JiraSnapshotCache jira) =>
 
 app.MapGet("/healthz", () => Results.Text("ok"));
 
+// Send a sample alert through every configured channel — handy for verifying delivery.
+app.MapGet("/test-alert", async (IEnumerable<IAlertChannel> channels) =>
+{
+    var alert = new Alert
+    {
+        Title = "InfraWatch test alert",
+        Message = "This is a test alert from InfraWatch. If you received this, alerting works.",
+        Severity = HealthStatus.Warning,
+        Pillar = "Test",
+    };
+
+    var attempted = new List<string>();
+    foreach (var channel in channels)
+    {
+        await channel.SendAsync(alert);
+        attempted.Add(channel.Name);
+    }
+
+    return Results.Text(attempted.Count == 0
+        ? "No alert channels registered."
+        : $"Test alert dispatched to: {string.Join(", ", attempted)}. " +
+          "Disabled/unconfigured channels silently no-op; check the app log for send results.");
+});
+
 app.Run();
