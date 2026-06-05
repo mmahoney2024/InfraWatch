@@ -12,6 +12,7 @@
     <ProjectReference Include="..\Collectors\InfraWatch.Collectors.HyperV\InfraWatch.Collectors.HyperV.csproj" />
     <ProjectReference Include="..\Collectors\InfraWatch.Collectors.Smb\InfraWatch.Collectors.Smb.csproj" />
     <ProjectReference Include="..\Collectors\InfraWatch.Collectors.Dhcp\InfraWatch.Collectors.Dhcp.csproj" />
+    <ProjectReference Include="..\Collectors\InfraWatch.Collectors.Imaging\InfraWatch.Collectors.Imaging.csproj" />
   </ItemGroup>
 
   <PropertyGroup>
