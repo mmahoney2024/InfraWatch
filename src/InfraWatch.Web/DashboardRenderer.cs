@@ -65,7 +65,7 @@ public static class DashboardRenderer
 
         RenderTiles(sb, health, jira);
         RenderJira(sb, jira);
-        RenderHostNet(sb, health);
+        RenderInfraChecks(sb, health);
 
         sb.Append("</main><footer>InfraWatch · Phase 0 walking skeleton · HostNet + Jira slice</footer></body></html>");
         return sb.ToString();
@@ -75,14 +75,15 @@ public static class DashboardRenderer
     {
         sb.Append("<h2>Status</h2><section class=\"tiles\">");
 
-        // Host/Net pillar tile
-        var hostNet = health.Where(h => h.Pillar == "HostNet").ToList();
-        var hnStatus = Worst(hostNet);
-        var hnWarn = hostNet.Count(h => h.Status == HealthStatus.Warning);
-        var hnCrit = hostNet.Count(h => h.Status is HealthStatus.Critical or HealthStatus.Unknown);
-        Tile(sb, "Host / Net", hnStatus,
-            hostNet.Count == 0 ? "—" : $"{hostNet.Count} checks",
-            hostNet.Count == 0 ? "no data yet" : $"{hnWarn} warning · {hnCrit} critical");
+        // One tile per infrastructure pillar that has reported data.
+        foreach (var pillar in InfraPillars(health))
+        {
+            var recs = health.Where(h => h.Pillar == pillar).ToList();
+            var warn = recs.Count(h => h.Status == HealthStatus.Warning);
+            var crit = recs.Count(h => h.Status is HealthStatus.Critical or HealthStatus.Unknown);
+            Tile(sb, PillarName(pillar), Worst(recs), $"{recs.Count} checks",
+                $"{warn} warning · {crit} critical");
+        }
 
         // Jira pillar tile
         if (jira.Configured)
@@ -140,30 +141,59 @@ public static class DashboardRenderer
             IssueTable(sb, "⏰ Open timeclock tickets", jira.Timeclock, showPriority: false);
     }
 
-    private static void RenderHostNet(StringBuilder sb, IReadOnlyList<HealthRecord> health)
+    private static void RenderInfraChecks(StringBuilder sb, IReadOnlyList<HealthRecord> health)
     {
-        var hostNet = health.Where(h => h.Pillar == "HostNet")
-            .OrderBy(h => h.Check).ThenBy(h => h.Target).ToList();
-        sb.Append("<h2>Host / Net checks</h2>");
-        if (hostNet.Count == 0)
+        var pillars = InfraPillars(health).ToList();
+        if (pillars.Count == 0)
         {
-            sb.Append("<div class=\"card muted\">No checks recorded yet — the first collection runs at startup.</div>");
+            sb.Append("<h2>Checks</h2><div class=\"card muted\">No checks recorded yet — the first collection runs at startup.</div>");
             return;
         }
 
-        sb.Append("<div class=\"card\"><table><tr><th>Target</th><th>Check</th><th>Status</th><th>Result</th><th>When</th></tr>");
-        foreach (var h in hostNet)
+        foreach (var pillar in pillars)
         {
-            sb.Append("<tr>")
-              .Append($"<td>{Enc(h.Target)}</td>")
-              .Append($"<td>{Enc(h.Check)}</td>")
-              .Append($"<td>{Pill(h.Status)}</td>")
-              .Append($"<td>{Enc(h.Summary ?? "")}</td>")
-              .Append($"<td class=\"muted\">{h.Timestamp.ToLocalTime():HH:mm:ss}</td>")
-              .Append("</tr>");
+            var recs = health.Where(h => h.Pillar == pillar)
+                .OrderBy(h => h.Check).ThenBy(h => h.Target).ToList();
+            sb.Append($"<h2>{Enc(PillarName(pillar))} checks</h2>")
+              .Append("<div class=\"card\"><table><tr><th>Target</th><th>Check</th><th>Status</th><th>Result</th><th>When</th></tr>");
+            foreach (var h in recs)
+            {
+                sb.Append("<tr>")
+                  .Append($"<td>{Enc(h.Target)}</td>")
+                  .Append($"<td>{Enc(h.Check)}</td>")
+                  .Append($"<td>{Pill(h.Status)}</td>")
+                  .Append($"<td>{Enc(h.Summary ?? "")}</td>")
+                  .Append($"<td class=\"muted\">{h.Timestamp.ToLocalTime():HH:mm:ss}</td>")
+                  .Append("</tr>");
+            }
+            sb.Append("</table></div>");
         }
-        sb.Append("</table></div>");
     }
+
+    // Infrastructure pillars present in the data, in a friendly order (Jira has its own widgets).
+    private static readonly string[] PillarOrder =
+        ["HostNet", "Dns", "Dhcp", "Smb", "ActiveDirectory", "HyperV", "Veeam"];
+
+    private static IEnumerable<string> InfraPillars(IReadOnlyList<HealthRecord> health)
+    {
+        var present = health.Select(h => h.Pillar).Where(p => p != "Jira").ToHashSet();
+        foreach (var p in PillarOrder)
+            if (present.Remove(p)) yield return p;
+        foreach (var p in present.OrderBy(x => x))
+            yield return p;
+    }
+
+    private static string PillarName(string pillar) => pillar switch
+    {
+        "HostNet" => "Host / Net",
+        "Dns" => "DNS",
+        "Dhcp" => "DHCP",
+        "Smb" => "SMB / File",
+        "ActiveDirectory" => "Active Directory",
+        "HyperV" => "Hyper-V",
+        "Veeam" => "Veeam",
+        _ => pillar,
+    };
 
     private static void IssueTable(StringBuilder sb, string title, IReadOnlyList<JiraIssue> issues, bool showPriority)
     {

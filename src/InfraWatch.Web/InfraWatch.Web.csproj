@@ -7,6 +7,7 @@
     <ProjectReference Include="..\Collectors\InfraWatch.Collectors.HostNet\InfraWatch.Collectors.HostNet.csproj" />
     <ProjectReference Include="..\Integrations\InfraWatch.Integrations.Jira\InfraWatch.Integrations.Jira.csproj" />
     <ProjectReference Include="..\InfraWatch.Alerting\InfraWatch.Alerting.csproj" />
+    <ProjectReference Include="..\Collectors\InfraWatch.Collectors.Dns\InfraWatch.Collectors.Dns.csproj" />
   </ItemGroup>
 
   <PropertyGroup>

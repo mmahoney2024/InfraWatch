@@ -63,7 +63,7 @@ append-only and the engine computes drift.
 | Project | Pillar | Likely access method |
 |---|---|---|
 | `InfraWatch.Collectors.HostNet` | Host / Net | ICMP, raw TCP, `SslStream` (TLS cert), `HttpClient` |
-| `InfraWatch.Collectors.Dns` | DNS | `System.Net.Dns` + targeted resolver queries |
+| `InfraWatch.Collectors.Dns` | DNS | DnsClient — per-server or system resolver, A/AAAA/MX/TXT/NS/… |
 | `InfraWatch.Collectors.Dhcp` | DHCP | `DhcpServer` PowerShell module / service + lease query |
 | `InfraWatch.Collectors.Smb` | SMB / File | SMB client connect, share enumeration |
 | `InfraWatch.Collectors.ActiveDirectory` | AD | `System.DirectoryServices`, `ActiveDirectory` PS module |
@@ -128,6 +128,11 @@ collector host and web host are separate machines sharing a database. Full steps
 - ✅ **Engine** — hosted scheduler runs each collector on its interval, persists results,
   isolates failures.
 - ✅ **HostNet collector** — ICMP latency + TLS cert expiry (verified live).
+- ✅ **DNS collector** — resolves records (per-server or system resolver), verifies expected
+  answers, latency, NXDOMAIN/SERVFAIL (DnsClient). Verified live against the four
+  `compass-tamu.tamu.edu` AD/DNS servers.
+- ✅ **Pillar-generic dashboard** — tiles + check tables render per infra pillar present, so
+  new pillars appear with no renderer changes. Dark-mode toggle (cookie-persisted).
 - ✅ **Jira integration** — REST client + JQL for all six widgets across IMS/CHG/CSI;
   validated against the live instance. "Unanswered" uses agent-comment detection
   (`accountType == "atlassian"`), ignoring automation/customer replies.

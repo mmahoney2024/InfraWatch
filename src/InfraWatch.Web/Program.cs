@@ -1,4 +1,5 @@
 using InfraWatch.Alerting;
+using InfraWatch.Collectors.Dns;
 using InfraWatch.Collectors.HostNet;
 using InfraWatch.Core;
 using InfraWatch.Engine;
@@ -29,6 +30,7 @@ builder.Services.AddSqliteStore(o =>
 builder.Services.AddEngine();
 builder.Services.AddAlerting(builder.Configuration);
 builder.Services.AddHostNetCollector(builder.Configuration);
+builder.Services.AddDnsCollector(builder.Configuration);
 builder.Services.AddJiraIntegration(builder.Configuration);
 
 var app = builder.Build();

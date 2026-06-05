@@ -9,11 +9,12 @@ public sealed class HostNetOptions
     /// <summary>Latency at or above this is Warning (yellow).</summary>
     public double PingWarnMs { get; set; } = 150;
 
-    /// <summary>Hosts to ICMP-ping. Replace with your own in appsettings.</summary>
-    public List<string> PingTargets { get; set; } = ["localhost", "8.8.8.8"];
+    /// <summary>Hosts to ICMP-ping. Configured via "HostNet:PingTargets" (empty default —
+    /// config binding appends to a non-empty list, so defaults live in appsettings.json).</summary>
+    public List<string> PingTargets { get; set; } = [];
 
-    /// <summary>"host:port" endpoints to read the TLS certificate from.</summary>
-    public List<string> TlsTargets { get; set; } = ["sscserv.atlassian.net:443", "github.com:443"];
+    /// <summary>"host:port" endpoints to read the TLS certificate from (via "HostNet:TlsTargets").</summary>
+    public List<string> TlsTargets { get; set; } = [];
 
     /// <summary>Cert expiring within this many days is Warning (yellow).</summary>
     public int CertWarnDays { get; set; } = 30;
