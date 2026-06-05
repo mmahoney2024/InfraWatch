@@ -131,6 +131,9 @@ collector host and web host are separate machines sharing a database. Full steps
 - ✅ **DNS collector** — resolves records (per-server or system resolver), verifies expected
   answers, latency, NXDOMAIN/SERVFAIL (DnsClient). Verified live against the four
   `compass-tamu.tamu.edu` AD/DNS servers.
+- ✅ **Active Directory collector** — domain/forest discovery, DC + FSMO + site inventory,
+  per-DC LDAP(S) bind latency, replication-neighbor health (integrated auth). Verified live
+  against `compass-tamu.tamu.edu` (4 DCs, all bind ~8ms, replication in sync).
 - ✅ **Pillar-generic dashboard** — tiles + check tables render per infra pillar present, so
   new pillars appear with no renderer changes. Dark-mode toggle (cookie-persisted).
 - ✅ **Jira integration** — REST client + JQL for all six widgets across IMS/CHG/CSI;

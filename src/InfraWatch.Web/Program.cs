@@ -1,4 +1,5 @@
 using InfraWatch.Alerting;
+using InfraWatch.Collectors.ActiveDirectory;
 using InfraWatch.Collectors.Dns;
 using InfraWatch.Collectors.HostNet;
 using InfraWatch.Core;
@@ -31,6 +32,7 @@ builder.Services.AddEngine();
 builder.Services.AddAlerting(builder.Configuration);
 builder.Services.AddHostNetCollector(builder.Configuration);
 builder.Services.AddDnsCollector(builder.Configuration);
+builder.Services.AddActiveDirectoryCollector(builder.Configuration);
 builder.Services.AddJiraIntegration(builder.Configuration);
 
 var app = builder.Build();
