@@ -66,7 +66,15 @@ app.MapGet("/pillar", async (string name, HttpContext http, IStore store) =>
     return Results.Content(DashboardRenderer.RenderPillar(name, health, inventory, IsDark(http)), "text/html");
 });
 
-// Drill 2 — a single check's latest state + history.
+// Drill 2 — one target/server's checks + its inventory.
+app.MapGet("/target", async (string pillar, string target, HttpContext http, IStore store) =>
+{
+    var health = Fresh(await store.GetLatestHealthAsync());
+    var inventory = await store.GetLatestInventoryAsync(pillar);
+    return Results.Content(DashboardRenderer.RenderTarget(pillar, target, health, inventory, IsDark(http)), "text/html");
+});
+
+// Drill 3 — a single check's latest state + history.
 app.MapGet("/check", async (string pillar, string target, string check, HttpContext http, IStore store) =>
 {
     var since = DateTimeOffset.UtcNow.AddDays(-1);

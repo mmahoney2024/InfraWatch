@@ -27,34 +27,38 @@ public static class DashboardRenderer
         return sb.ToString();
     }
 
-    /// <summary>Drill 1: one pillar's checks (each links to its history) + inventory.</summary>
+    /// <summary>Drill 1: one pillar's targets (servers/endpoints), each rolled up and
+    /// linking to its own detail page. Inventory (documentation) follows.</summary>
     public static string RenderPillar(
         string pillar, IReadOnlyList<HealthRecord> health,
         IReadOnlyList<InventoryRecord> inventory, bool dark = false)
     {
-        var recs = health.Where(h => h.Pillar == pillar)
-            .OrderBy(h => h.Check).ThenBy(h => h.Target).ToList();
+        var recs = health.Where(h => h.Pillar == pillar).ToList();
+        var targets = recs.GroupBy(h => h.Target).OrderBy(g => g.Key).ToList();
 
         var sb = new StringBuilder();
         OpenPage(sb, dark, breadcrumb: $"<a href=\"/\">Overview</a> › {Enc(PillarName(pillar))}");
-        sb.Append($"<h2>{Enc(PillarName(pillar))} — checks</h2>");
+        sb.Append($"<h2>{Enc(PillarName(pillar))} — {targets.Count} {(targets.Count == 1 ? "target" : "targets")}</h2>");
 
-        if (recs.Count == 0)
+        if (targets.Count == 0)
         {
             sb.Append("<div class=\"card muted\">No checks for this pillar yet.</div>");
         }
         else
         {
-            sb.Append("<div class=\"card\"><table><tr><th>Target</th><th>Check</th><th>Status</th><th>Result</th><th>When</th></tr>");
-            foreach (var h in recs)
+            sb.Append("<div class=\"card\"><table><tr><th>Target</th><th>Status</th><th>Checks</th><th>Detail</th></tr>");
+            foreach (var g in targets)
             {
-                var url = $"/check?pillar={Esc(h.Pillar)}&target={Esc(h.Target)}&check={Esc(h.Check)}";
+                var list = g.ToList();
+                var ok = list.Count(h => h.Status == HealthStatus.Healthy);
+                var warn = list.Count(h => h.Status == HealthStatus.Warning);
+                var crit = list.Count(h => h.Status is HealthStatus.Critical or HealthStatus.Unknown);
+                var url = $"/target?pillar={Esc(pillar)}&target={Esc(g.Key)}";
                 sb.Append("<tr>")
-                  .Append($"<td class=\"k\"><a href=\"{Enc(url)}\">{Enc(h.Target)}</a></td>")
-                  .Append($"<td>{Enc(h.Check)}</td>")
-                  .Append($"<td>{Pill(h.Status)}</td>")
-                  .Append($"<td>{Enc(h.Summary ?? "")}</td>")
-                  .Append($"<td class=\"muted\">{h.Timestamp.ToLocalTime():HH:mm:ss}</td>")
+                  .Append($"<td class=\"k\"><a href=\"{Enc(url)}\">{Enc(g.Key)}</a></td>")
+                  .Append($"<td>{Pill(Worst(list))}</td>")
+                  .Append($"<td>{list.Count}</td>")
+                  .Append($"<td class=\"muted\">{ok} OK · {warn} warn · {crit} crit</td>")
                   .Append("</tr>");
             }
             sb.Append("</table></div>");
@@ -65,13 +69,59 @@ public static class DashboardRenderer
         return sb.ToString();
     }
 
+    /// <summary>Drill 2: one target (server/endpoint) — its individual checks (each links to
+    /// history) plus the inventory that belongs to it (e.g. a host's VMs).</summary>
+    public static string RenderTarget(
+        string pillar, string target, IReadOnlyList<HealthRecord> health,
+        IReadOnlyList<InventoryRecord> inventory, bool dark = false)
+    {
+        var recs = health.Where(h => h.Pillar == pillar && h.Target == target)
+            .OrderBy(h => h.Check).ToList();
+
+        var sb = new StringBuilder();
+        var crumb = $"<a href=\"/\">Overview</a> › <a href=\"/pillar?name={Esc(pillar)}\">{Enc(PillarName(pillar))}</a> › {Enc(target)}";
+        OpenPage(sb, dark, crumb);
+        sb.Append($"<h2>{Enc(target)} — checks</h2>");
+
+        if (recs.Count == 0)
+        {
+            sb.Append("<div class=\"card muted\">No checks for this target.</div>");
+        }
+        else
+        {
+            sb.Append("<div class=\"card\"><table><tr><th>Check</th><th>Status</th><th>Result</th><th>When</th></tr>");
+            foreach (var h in recs)
+            {
+                var url = $"/check?pillar={Esc(h.Pillar)}&target={Esc(h.Target)}&check={Esc(h.Check)}";
+                sb.Append("<tr>")
+                  .Append($"<td class=\"k\"><a href=\"{Enc(url)}\">{Enc(h.Check)}</a></td>")
+                  .Append($"<td>{Pill(h.Status)}</td>")
+                  .Append($"<td>{Enc(h.Summary ?? "")}</td>")
+                  .Append($"<td class=\"muted\">{h.Timestamp.ToLocalTime():HH:mm:ss}</td>")
+                  .Append("</tr>");
+            }
+            sb.Append("</table></div>");
+        }
+
+        var related = inventory.Where(i => BelongsToTarget(i, target)).ToList();
+        RenderInventory(sb, related);
+        ClosePage(sb);
+        return sb.ToString();
+    }
+
+    private static bool BelongsToTarget(InventoryRecord i, string target) =>
+        string.Equals(i.Key, target, StringComparison.OrdinalIgnoreCase)
+        || i.Key.StartsWith(target + "/", StringComparison.OrdinalIgnoreCase)
+        || string.Equals(i.Name, target, StringComparison.OrdinalIgnoreCase)
+        || (i.Attributes?.Values.Any(v => string.Equals(v, target, StringComparison.OrdinalIgnoreCase)) ?? false);
+
     /// <summary>Drill 2: a single check — latest state, value sparkline, and history.</summary>
     public static string RenderCheck(
         string pillar, string target, string check,
         IReadOnlyList<HealthRecord> history, bool dark = false)
     {
         var sb = new StringBuilder();
-        var crumb = $"<a href=\"/\">Overview</a> › <a href=\"/pillar?name={Esc(pillar)}\">{Enc(PillarName(pillar))}</a> › {Enc(target)} · {Enc(check)}";
+        var crumb = $"<a href=\"/\">Overview</a> › <a href=\"/pillar?name={Esc(pillar)}\">{Enc(PillarName(pillar))}</a> › <a href=\"/target?pillar={Esc(pillar)}&target={Esc(target)}\">{Enc(target)}</a> › {Enc(check)}";
         OpenPage(sb, dark, crumb);
 
         if (history.Count == 0)
