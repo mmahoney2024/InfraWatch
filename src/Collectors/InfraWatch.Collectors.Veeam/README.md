@@ -6,10 +6,18 @@ We don't use Veeam ONE — InfraWatch reads posture directly from the **B&amp;R 
 
 **Health (per B&amp;R server target):**
 - **job `<name>`** — last result (Success/Warning/Failed) **and RPO**: Critical if no run
-  within `RpoHours`
-- **jobs** — roll-up (ok / warning / failed counts)
+  within `RpoHours`. Disabled jobs are informational.
+- **backup `<machine>`** — newest restore-point age per protected machine. **Catches VM
+  backups that aren't exposed as REST "jobs"** (older console jobs). Stale (no point within
+  `BackupRpoHours`) = Warning by default, or Critical if `BackupRpoCritical`. Grouped per
+  machine across all its backup sets.
+- **jobs** / **backups** — roll-ups
 - **repo `<name>`** — repository free space % (Warning below `RepoFreeWarnPct`)
 - **connection** — Critical if auth/connect fails
+
+> Why: this B&amp;R server's VM (Hyper-V) backups don't appear in `/api/v1/jobs/states`
+> (only file-share jobs do, and `/api/v1/jobs` is empty). They're read from
+> `/api/v1/restorePoints` instead — that's where the per-machine last-backup time lives.
 
 **Documentation (inventory):** `job` records (type, last result, last run) and `repository`
 records (capacity / free / used GB).

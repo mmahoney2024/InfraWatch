@@ -71,7 +71,79 @@ public sealed class VeeamCollector : ICollector
             health.Add(H(server, "repositories", HealthStatus.Unknown, null, null, $"could not query: {ex.Message}"));
         }
 
+        if (_options.MonitorBackups)
+        {
+            try
+            {
+                await AddBackupsAsync(server, health, inventory, cancellationToken);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogWarning(ex, "Veeam restore-point query failed");
+                health.Add(H(server, "backups", HealthStatus.Unknown, null, null, $"could not query restore points: {ex.Message}"));
+            }
+        }
+
         return new CollectionResult(health, inventory);
+    }
+
+    /// <summary>
+    /// Per protected machine, the age of its newest restore point — catches VM backups that
+    /// aren't exposed as REST "jobs". Stale = no point within BackupRpoHours.
+    /// </summary>
+    private async Task AddBackupsAsync(string server, List<HealthRecord> health, List<InventoryRecord> inventory, CancellationToken ct)
+    {
+        using var doc = await _client.GetAsync(
+            $"/api/v1/restorePoints?limit={_options.MaxRestorePoints}&orderColumn=CreationTime&orderAsc=false", ct);
+
+        // Newest restore point per machine name (across all its backup sets).
+        var latest = new Dictionary<string, (DateTimeOffset When, string Platform, int Points)>(StringComparer.OrdinalIgnoreCase);
+        foreach (var rp in Data(doc))
+        {
+            var name = Str(rp, "name");
+            if (string.IsNullOrEmpty(name) || !DateTimeOffset.TryParse(Str(rp, "creationTime"), out var when))
+                continue;
+            var platform = Str(rp, "platformName");
+            if (latest.TryGetValue(name, out var cur))
+                latest[name] = (when > cur.When ? when : cur.When, cur.Platform, cur.Points + 1);
+            else
+                latest[name] = (when, platform, 1);
+        }
+
+        var ok = 0;
+        var stale = 0;
+        foreach (var (name, info) in latest)
+        {
+            if (_options.ExcludeBackups.Any(e => string.Equals(e, name, StringComparison.OrdinalIgnoreCase)))
+                continue;
+
+            var ageH = (DateTimeOffset.UtcNow - info.When).TotalHours;
+            var ageDays = Math.Round(ageH / 24, 1);
+            var isStale = ageH > _options.BackupRpoHours;
+            if (isStale) stale++; else ok++;
+
+            var ageStr = ageH >= 48 ? $"{ageH / 24:0} days ago" : $"{ageH:0} h ago";
+            health.Add(H(server, $"backup {name}",
+                isStale ? (_options.BackupRpoCritical ? HealthStatus.Critical : HealthStatus.Warning) : HealthStatus.Healthy,
+                ageDays, "days",
+                $"{info.Platform}: last backup {info.When.ToLocalTime():yyyy-MM-dd HH:mm} ({ageStr}), {info.Points} points"));
+
+            inventory.Add(new InventoryRecord
+            {
+                Pillar = Pillar, Kind = "backup", Key = name, Name = name,
+                Attributes = new Dictionary<string, string>
+                {
+                    ["platform"] = info.Platform,
+                    ["lastBackup"] = info.When.ToLocalTime().ToString("u"),
+                    ["ageDays"] = ((int)(ageH / 24)).ToString(),
+                    ["restorePoints"] = info.Points.ToString(),
+                },
+            });
+        }
+
+        health.Add(H(server, "backups",
+            stale > 0 ? (_options.BackupRpoCritical ? HealthStatus.Critical : HealthStatus.Warning) : HealthStatus.Healthy,
+            ok + stale, "machines", $"{ok} current · {stale} stale (> {_options.BackupRpoHours}h)"));
     }
 
     private HealthRecord MapJob(string server, JsonElement job, List<InventoryRecord> inventory)
