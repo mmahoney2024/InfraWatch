@@ -16,6 +16,7 @@ public static class ServiceCollectionExtensions
             builder.Bind(config.GetSection("Dhcp"));
 
         services.AddSingleton<ICollector, DhcpCollector>();
+        services.AddSingleton<DhcpTester>();
         return services;
     }
 }

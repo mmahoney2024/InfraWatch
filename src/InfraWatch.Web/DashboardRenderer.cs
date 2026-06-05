@@ -103,10 +103,28 @@ public static class DashboardRenderer
             sb.Append("</table></div>");
         }
 
+        if (pillar == "Dhcp")
+            RenderDhcpTest(sb, target);
+
         var related = inventory.Where(i => BelongsToTarget(i, target)).ToList();
         RenderInventory(sb, related);
         ClosePage(sb);
         return sb.ToString();
+    }
+
+    private static void RenderDhcpTest(StringBuilder sb, string server)
+    {
+        sb.Append("<h2>Active test</h2><div class=\"card\">")
+          .Append("<div>Send a real DHCP <b>DISCOVER</b> to this server and show whether it OFFERs an address. ")
+          .Append("<span class=\"muted\">Intrusive probe (uses a dedicated probe MAC); needs <code>Dhcp:RelayAddress</code> set.</span></div>")
+          .Append("<div style=\"margin-top:10px\">")
+          .Append($"<button class=\"btn\" onclick=\"iwDhcp('{Enc(server)}',false)\">Run DISCOVER → OFFER</button>")
+          .Append($"<button class=\"btn intrusive\" onclick=\"iwDhcp('{Enc(server)}',true)\">Full lease (acquire + release)</button>")
+          .Append("</div><div id=\"dhcpResult\" class=\"muted\" style=\"margin-top:10px\">—</div></div>")
+          .Append("<script>function iwDhcp(s,l){var e=document.getElementById('dhcpResult');")
+          .Append("e.textContent='Testing '+s+'… (up to ~5s)';")
+          .Append("fetch('/dhcp-test?server='+encodeURIComponent(s)+'&lease='+l)")
+          .Append(".then(r=>r.text()).then(t=>{e.textContent=t;}).catch(x=>{e.textContent='Error: '+x;});}</script>");
     }
 
     private static bool BelongsToTarget(InventoryRecord i, string target) =>
@@ -178,6 +196,8 @@ public static class DashboardRenderer
             header h1{font-size:18px;margin:0;letter-spacing:.3px}header h1 a{color:#fff;text-decoration:none}header .sub{color:#9fb0c3;font-size:12px}
             .themeBtn{margin-left:auto;background:transparent;border:1px solid #ffffff55;color:#fff;border-radius:6px;padding:4px 10px;font-size:15px;line-height:1;cursor:pointer}
             .themeBtn:hover{background:#ffffff22}
+            .btn{background:#2b6cb0;color:#fff;border:none;border-radius:6px;padding:7px 13px;font-size:13px;cursor:pointer;margin:0 8px 0 0}
+            .btn:hover{background:#255a96}.btn.intrusive{background:#b9770a}.btn.intrusive:hover{background:#9c6309}
             main{max-width:1100px;margin:0 auto;padding:20px}
             .crumb{font-size:13px;color:var(--muted);margin-bottom:6px}.crumb a{color:#4a90d9;text-decoration:none}.crumb a:hover{text-decoration:underline}
             h2{font-size:13px;text-transform:uppercase;letter-spacing:.6px;color:var(--muted2);margin:26px 0 10px}

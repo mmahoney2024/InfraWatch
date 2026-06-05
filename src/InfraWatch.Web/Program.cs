@@ -95,6 +95,13 @@ app.MapGet("/api/state", async (IStore store, JiraSnapshotCache jira) =>
 
 app.MapGet("/healthz", () => Results.Text("ok"));
 
+// On-demand active DHCP offer/lease test (triggered by the button on a DHCP server page).
+app.MapGet("/dhcp-test", async (string server, bool? lease, DhcpTester tester) =>
+{
+    var outcome = await Task.Run(() => tester.Run(server, lease ?? false));
+    return Results.Text(outcome.Message);
+});
+
 // Send a sample alert through every configured channel — handy for verifying delivery.
 app.MapGet("/test-alert", async (IEnumerable<IAlertChannel> channels) =>
 {
