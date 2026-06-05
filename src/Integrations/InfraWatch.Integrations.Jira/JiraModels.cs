@@ -32,8 +32,9 @@ public sealed record JiraDashboard
     public int WaitingCount { get; init; }
     public int CreatedThisMonth { get; init; }
     public int ResolvedThisMonth { get; init; }
-    public int CreatedLastMonth { get; init; }
-    public int ResolvedLastMonth { get; init; }
+    // Same month-to-date window in the previous month ("this point last month").
+    public int CreatedLastMonthToDate { get; init; }
+    public int ResolvedLastMonthToDate { get; init; }
 
     public IReadOnlyList<JiraIssue> Pressing { get; init; } = [];
     public IReadOnlyList<JiraIssue> Unanswered { get; init; } = [];

@@ -301,7 +301,8 @@ public static class DashboardRenderer
           .Append("<div class=\"legend\"><span class=\"sw\" style=\"background:#2b6cb0\"></span><b>Created</b>")
           .Append("<span class=\"sw\" style=\"background:#1f9d55\"></span><b>Resolved</b></div></div>");
 
-        RenderMonthCompare(sb, jira.CreatedLastMonth, jira.ResolvedLastMonth);
+        RenderMonthCompare(sb, jira.CreatedThisMonth, jira.ResolvedThisMonth,
+            jira.CreatedLastMonthToDate, jira.ResolvedLastMonthToDate);
 
         IssueTable(sb, "Most pressing tickets", jira.Pressing, showPriority: true);
         IssueTable(sb, "Unanswered > 1 day", jira.Unanswered, showPriority: false);
@@ -427,31 +428,28 @@ public static class DashboardRenderer
         return sb.ToString();
     }
 
-    private static void RenderMonthCompare(StringBuilder sb, int opened, int closed)
+    private static void RenderMonthCompare(StringBuilder sb, int openedThis, int closedThis, int openedLast, int closedLast)
     {
-        var max = Math.Max(1, Math.Max(opened, closed));
-        var net = closed - opened;
-        string netLabel = net > 0
-            ? $"<span style=\"color:var(--ok)\">▼ backlog shrank by {net}</span> — closed more than opened"
-            : net < 0
-                ? $"<span style=\"color:var(--crit)\">▲ backlog grew by {-net}</span> — opened more than closed"
-                : "even — closed exactly as many as opened";
+        var day = DateTimeOffset.Now.Day;
+        var openedDelta = openedThis - openedLast;
+        var closedDelta = closedThis - closedLast;
 
-        sb.Append("<div class=\"card\"><b>Last month — opened vs. closed</b>");
-        CompareBar(sb, "Opened", opened, max, "#2b6cb0");
-        CompareBar(sb, "Closed", closed, max, "#1f9d55");
-        sb.Append($"<div class=\"muted\" style=\"margin-top:8px\">{netLabel}</div></div>");
+        sb.Append("<div class=\"card\"><b>Opened vs. closed — same point last month</b> ")
+          .Append($"<span class=\"muted\">(month-to-date, through the {day}{Ordinal(day)})</span>")
+          .Append("<table style=\"margin-top:8px\"><tr><th></th><th>Opened</th><th>Closed</th></tr>")
+          .Append($"<tr><td>This month</td><td><b>{openedThis}</b></td><td><b>{closedThis}</b></td></tr>")
+          .Append($"<tr><td>Same point last month</td><td>{openedLast}</td><td>{closedLast}</td></tr>")
+          .Append("</table>")
+          .Append("<div class=\"muted\" style=\"margin-top:8px\">vs last month: ")
+          .Append($"opened {Delta(openedDelta)} · closed ")
+          .Append($"<span style=\"color:var(--{(closedDelta >= 0 ? "ok" : "crit")})\">{Delta(closedDelta)}</span></div></div>");
     }
 
-    private static void CompareBar(StringBuilder sb, string label, int value, int max, string color)
-    {
-        var pct = (value * 100.0 / max).ToString("0.#", CultureInfo.InvariantCulture);
-        sb.Append("<div style=\"display:flex;align-items:center;gap:10px;margin-top:8px\">")
-          .Append($"<div style=\"width:64px;color:var(--muted)\">{Enc(label)}</div>")
-          .Append("<div style=\"flex:1;background:var(--line);border-radius:4px;height:18px;overflow:hidden\">")
-          .Append($"<div style=\"width:{pct}%;background:{color};height:100%\"></div></div>")
-          .Append($"<div style=\"width:46px;text-align:right;font-weight:700\">{value}</div></div>");
-    }
+    private static string Delta(int d) => d == 0 ? "even" : d > 0 ? $"+{d}" : d.ToString(CultureInfo.InvariantCulture);
+
+    private static string Ordinal(int n) => (n % 100) is 11 or 12 or 13
+        ? "th"
+        : (n % 10) switch { 1 => "st", 2 => "nd", 3 => "rd", _ => "th" };
 
     private static string BuildSparkline(IReadOnlyList<HealthRecord> history)
     {

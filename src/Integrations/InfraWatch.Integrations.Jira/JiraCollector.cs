@@ -57,8 +57,12 @@ public sealed class JiraCollector : ICollector
         var timeclockJql = $"{scope} AND statusCategory != Done AND ({timeclock}) ORDER BY created ASC";
         var createdMtdJql = $"{scope} AND created >= startOfMonth()";
         var resolvedMtdJql = $"{scope} AND resolved >= startOfMonth()";
-        var createdLastJql = $"{scope} AND created >= startOfMonth(-1) AND created < startOfMonth()";
-        var resolvedLastJql = $"{scope} AND resolved >= startOfMonth(-1) AND resolved < startOfMonth()";
+        // "This point last month": same month-to-date window in the previous month.
+        var now = DateTimeOffset.Now;
+        var lmStart = new DateTimeOffset(now.Year, now.Month, 1, 0, 0, 0, now.Offset).AddMonths(-1);
+        var lmCutoff = now.AddMonths(-1);
+        var createdLastJql = $"{scope} AND created >= \"{lmStart:yyyy/MM/dd HH:mm}\" AND created < \"{lmCutoff:yyyy/MM/dd HH:mm}\"";
+        var resolvedLastJql = $"{scope} AND resolved >= \"{lmStart:yyyy/MM/dd HH:mm}\" AND resolved < \"{lmCutoff:yyyy/MM/dd HH:mm}\"";
 
         var openCount = await _client.CountAsync(openJql, cancellationToken);
         var waitingCount = await _client.CountAsync(waitingJql, cancellationToken);
@@ -86,8 +90,8 @@ public sealed class JiraCollector : ICollector
             WaitingCount = waitingCount,
             CreatedThisMonth = createdMtd,
             ResolvedThisMonth = resolvedMtd,
-            CreatedLastMonth = createdLast,
-            ResolvedLastMonth = resolvedLast,
+            CreatedLastMonthToDate = createdLast,
+            ResolvedLastMonthToDate = resolvedLast,
             Pressing = pressing,
             Unanswered = unanswered,
             Timeclock = timeclockIssues,
