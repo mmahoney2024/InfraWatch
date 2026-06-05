@@ -134,6 +134,11 @@ collector host and web host are separate machines sharing a database. Full steps
 - ✅ **Active Directory collector** — domain/forest discovery, DC + FSMO + site inventory,
   per-DC LDAP(S) bind latency, replication-neighbor health (integrated auth). Verified live
   against `compass-tamu.tamu.edu` (4 DCs, all bind ~8ms, replication in sync).
+- ✅ **Hyper-V collector** — per host (WMI, integrated auth): reachability, CPU %, free RAM %,
+  VM states, checkpoint sprawl; host + VM inventory. Verified live against `fs-aio` (10 VMs
+  running); unreachable hosts correctly flagged Critical.
+- ✅ **Roll-up / drill-down dashboard** — overview tiles → pillar (checks + inventory) →
+  check (latest + value sparkline + history), with breadcrumbs.
 - ✅ **Pillar-generic dashboard** — tiles + check tables render per infra pillar present, so
   new pillars appear with no renderer changes. Dark-mode toggle (cookie-persisted).
 - ✅ **Jira integration** — REST client + JQL for all six widgets across IMS/CHG/CSI;

@@ -1,15 +1,39 @@
 # InfraWatch.Collectors.HyperV
 
-**Pillar:** Hyper-V (standalone hosts and/or failover clusters).
+**Pillar:** Hyper-V (standalone hosts). **Implemented (read-only).**
 
-**Health checks:** host CPU/RAM/storage, VM states, replica health, checkpoint sprawl,
-cluster node/quorum, CSV free space.
+Per configured host, over WMI/CIM (`root\virtualization\v2` + `root\cimv2`), using the
+service account's own Windows credentials — **no credentials in config**.
 
-**Documentation:** VM inventory, VM-to-host mapping, vCPU/RAM allocation, virtual switch
-layout.
+**Health checks (per host):**
+- **host** — reachability (WMI connect)
+- **cpu** — average CPU load %
+- **memory** — free host RAM %
+- **vm-states** — running / off / other counts
+- **checkpoints** — total checkpoints (warns on sprawl)
 
-**Access method:** CIM/WMI, plus the `Hyper-V` and `FailoverClusters` PowerShell modules.
+**Documentation (inventory):**
+- `host` — VM count, running count
+- `vm` — each VM (host, state, health)
 
-**Privileges required:** read access on the Hyper-V hosts / cluster (Hyper-V
-Administrators or an equivalent least-privilege read role). Open question: standalone vs
-cluster, and how many (`CONCEPT.md` §9).
+**Access method:** `System.Management` (WMI). Remote hosts are reached via DCOM/RPC
+(port 135 + dynamic RPC) — the host must be reachable and the account must have rights to
+query Hyper-V WMI (typically local admin on the host). Unreachable hosts degrade to a clear
+`Critical` "unreachable" status.
+
+**Verified live** against `fs-aio.compass-tamu.tamu.edu` — see [[compass-tamu-environment]].
+
+## Config (`HyperV` section)
+
+```jsonc
+"HyperV": {
+  "Interval": "00:02:00",
+  "Hosts": [ "fs-aio.compass-tamu.tamu.edu" ],  // empty = the local machine
+  "CpuWarnPct": 85,
+  "MemFreeWarnPct": 10,
+  "CheckpointWarn": 10
+}
+```
+
+> Follow-up: per-VM vCPU/RAM allocation, replica health, and failover-cluster/CSV checks
+> (the latter via `FailoverClusters`).

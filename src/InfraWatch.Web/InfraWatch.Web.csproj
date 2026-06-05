@@ -9,6 +9,7 @@
     <ProjectReference Include="..\InfraWatch.Alerting\InfraWatch.Alerting.csproj" />
     <ProjectReference Include="..\Collectors\InfraWatch.Collectors.Dns\InfraWatch.Collectors.Dns.csproj" />
     <ProjectReference Include="..\Collectors\InfraWatch.Collectors.ActiveDirectory\InfraWatch.Collectors.ActiveDirectory.csproj" />
+    <ProjectReference Include="..\Collectors\InfraWatch.Collectors.HyperV\InfraWatch.Collectors.HyperV.csproj" />
   </ItemGroup>
 
   <PropertyGroup>
