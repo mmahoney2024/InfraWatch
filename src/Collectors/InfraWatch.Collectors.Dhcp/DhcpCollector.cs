@@ -1,4 +1,6 @@
 using System.Diagnostics;
+using System.Net;
+using System.Net.Sockets;
 using System.Text;
 using System.Text.Json;
 using System.Text.RegularExpressions;
@@ -45,9 +47,45 @@ public sealed partial class DhcpCollector : ICollector
                 continue;
             }
             await QueryServerAsync(server, health, inventory, cancellationToken);
+
+            if (_options.OfferTest)
+                health.Add(await Task.Run(() => OfferTest(server), cancellationToken));
         }
 
         return new CollectionResult(health, inventory);
+    }
+
+    private HealthRecord OfferTest(string server)
+    {
+        var check = _options.LeaseTest ? "lease-test" : "offer-test";
+
+        if (string.IsNullOrWhiteSpace(_options.RelayAddress) || !IPAddress.TryParse(_options.RelayAddress, out var relay))
+            return H(server, check, HealthStatus.Unknown, null, null, "no/invalid RelayAddress configured");
+
+        IPAddress? serverIp;
+        try
+        {
+            serverIp = Array.Find(Dns.GetHostAddresses(server), a => a.AddressFamily == AddressFamily.InterNetwork);
+        }
+        catch (Exception ex)
+        {
+            return H(server, check, HealthStatus.Critical, null, null, $"resolve failed: {ex.Message}");
+        }
+        if (serverIp is null)
+            return H(server, check, HealthStatus.Critical, null, null, "no IPv4 address for server");
+
+        try
+        {
+            var r = DhcpProbe.Run(serverIp, relay, _options.OfferTimeoutMs, _options.LeaseTest);
+            return r.OfferReceived
+                ? H(server, check, HealthStatus.Healthy, r.LatencyMs, "ms", $"{r.Message} ({r.LatencyMs} ms)")
+                : H(server, check, HealthStatus.Critical, r.LatencyMs, "ms", r.Message);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "DHCP offer test to {Server} failed", server);
+            return H(server, check, HealthStatus.Critical, null, null, $"probe error: {ex.Message}");
+        }
     }
 
     private async Task QueryServerAsync(
