@@ -52,9 +52,10 @@ append-only and the engine computes drift.
 | `InfraWatch.Engine` | Scheduler (when each collector runs), baseline/drift detection, alert-rule evaluation, flap detection, dedup. | Core, Storage |
 | `InfraWatch.Alerting` | `IAlertChannel` implementations: email / Teams / ntfy / Discord. | Core |
 | `InfraWatch.Docs` | Renders stored inventory + history to Markdown / PDF; optional wiki push. | Core, Storage |
-| `InfraWatch.Service` | Composition root. Hosts the engine as a Windows service (`Microsoft.Extensions.Hosting`). Wires collectors → store → engine → alerting. | all |
-| `InfraWatch.Web` | ASP.NET Core dashboard: roll-up tiles, drill-down, report rendering. Reads from the store. | Core, Storage, Docs |
-| `Collectors/InfraWatch.Collectors.*` | One project per pillar. Each implements `ICollector` and produces normalized health + inventory. | Core |
+| `InfraWatch.Service` | Composition root for a **split deployment** (collector host on a different box than the web host). Hosts the engine as a Windows service. Wires collectors → store → engine → alerting. | all |
+| `InfraWatch.Web` | ASP.NET Core dashboard **and** the default deployable unit: serves the UI/API *and* runs the engine + collectors as hosted background services, so one install is web-accessible. Runs as a Windows service (`AddWindowsService()`), optionally behind IIS. | Core, Storage, Engine, Docs, collectors, integrations |
+| `Collectors/InfraWatch.Collectors.*` | One project per infra pillar. Each implements `ICollector` and produces normalized health + inventory. | Core |
+| `Integrations/InfraWatch.Integrations.*` | External SaaS data sources (e.g. **Jira**). Same `ICollector` pattern; poll an external API and emit normalized records. | Core |
 | `tests/InfraWatch.Tests` | Unit/integration tests. | (project under test) |
 
 ### Collector projects
@@ -73,6 +74,27 @@ Why separate projects per collector: each pillar pulls in different, sometimes h
 dependencies (PowerShell SDK, directory services, vendor APIs). Isolating them keeps the
 core dependency-free, lets pillars be built/tested in isolation, and makes it trivial to
 disable a pillar we don't have access to yet.
+
+### Integration projects
+
+| Project | Source | Access method |
+|---|---|---|
+| `InfraWatch.Integrations.Jira` | Jira Cloud (`sscserv.atlassian.net`, project `IMS`) | REST API v3, Basic auth (`email:api-token`) |
+
+Integrations are non-infra data sources that still feed the dashboard. Jira polls the
+service desk on a schedule and emits counts + issue lists + a timeclock alert. Full spec
+in [`JIRA.md`](JIRA.md).
+
+---
+
+## 2a. Deployment & hosting
+
+The default deployable unit is **`InfraWatch.Web`**: it serves the dashboard and runs the
+engine + collectors as `IHostedService` background services in the same process, installed
+as a Windows service on one server and reached as a webpage (direct Kestrel, or behind IIS
+for TLS + Windows auth). `InfraWatch.Service` covers a later **split** topology where the
+collector host and web host are separate machines sharing a database. Full steps in
+[`DEPLOYMENT.md`](DEPLOYMENT.md).
 
 ---
 

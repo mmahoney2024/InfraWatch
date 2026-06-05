@@ -9,8 +9,10 @@ what it measures into **living documentation**. Because the tool is already talk
 everything to check health, it records what it finds: documentation becomes a *rendering
 of measured reality* instead of a manual chore, so it's always true and never stale.
 
-See [`docs/CONCEPT.md`](docs/CONCEPT.md) for the full proposal and
-[`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md) for how the code is organized.
+See [`docs/CONCEPT.md`](docs/CONCEPT.md) for the full proposal,
+[`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md) for how the code is organized,
+[`docs/JIRA.md`](docs/JIRA.md) for the Jira dashboard integration, and
+[`docs/DEPLOYMENT.md`](docs/DEPLOYMENT.md) for installing it on a Windows server.
 
 > **Status:** Phase 0 — project skeleton. No functional collectors yet.
 
@@ -21,8 +23,18 @@ See [`docs/CONCEPT.md`](docs/CONCEPT.md) for the full proposal and
 - **Monitor** — at-a-glance health of core services, with alerts *before* users notice.
 - **Document** — auto-generated inventory ("what exists"), change history ("what changed
   and when"), and on-demand reports ("the writeup").
+- **Jira at a glance** — a high-level view of the IT service desk next to the infra tiles:
+  pressing tickets, day-old unanswered tickets, open-vs-closed/month graphs, and a
+  **timeclock alert**. See [`docs/JIRA.md`](docs/JIRA.md).
 - **One pane of glass** — roll-up status tiles per pillar, drill down to individual
   checks, drill again to raw measured detail + change log.
+
+## Deployment
+
+Runs on **one Windows server** as a single service: `InfraWatch.Web` serves the dashboard
+*and* hosts the collector engine in the background, so the install is reachable as a
+webpage on the internal network (direct Kestrel, or behind IIS for TLS + Windows auth).
+Full steps in [`docs/DEPLOYMENT.md`](docs/DEPLOYMENT.md).
 
 ## Pillars
 
@@ -56,16 +68,18 @@ InfraWatch/
 │   ├── InfraWatch.Engine/         Scheduler, drift detection, alert rules
 │   ├── InfraWatch.Alerting/       Alert channels (email / Teams / ntfy / Discord)
 │   ├── InfraWatch.Docs/           Docs renderer (Markdown / PDF)
-│   ├── InfraWatch.Service/        Windows service host — composition root
-│   ├── InfraWatch.Web/            ASP.NET Core dashboard
-│   └── Collectors/                One project per pillar
-│       ├── InfraWatch.Collectors.HostNet/
-│       ├── InfraWatch.Collectors.Dns/
-│       ├── InfraWatch.Collectors.Dhcp/
-│       ├── InfraWatch.Collectors.Smb/
-│       ├── InfraWatch.Collectors.ActiveDirectory/
-│       ├── InfraWatch.Collectors.HyperV/
-│       └── InfraWatch.Collectors.Veeam/
+│   ├── InfraWatch.Service/        Windows service host — split-deploy composition root
+│   ├── InfraWatch.Web/            ASP.NET Core dashboard + engine host (deployable unit)
+│   ├── Collectors/                One project per infra pillar
+│   │   ├── InfraWatch.Collectors.HostNet/
+│   │   ├── InfraWatch.Collectors.Dns/
+│   │   ├── InfraWatch.Collectors.Dhcp/
+│   │   ├── InfraWatch.Collectors.Smb/
+│   │   ├── InfraWatch.Collectors.ActiveDirectory/
+│   │   ├── InfraWatch.Collectors.HyperV/
+│   │   └── InfraWatch.Collectors.Veeam/
+│   └── Integrations/              External SaaS data sources
+│       └── InfraWatch.Integrations.Jira/   Jira service-desk widgets + timeclock alert
 └── tests/
     └── InfraWatch.Tests/
 ```
