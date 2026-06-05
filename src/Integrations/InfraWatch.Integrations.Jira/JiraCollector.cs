@@ -57,11 +57,15 @@ public sealed class JiraCollector : ICollector
         var timeclockJql = $"{scope} AND statusCategory != Done AND ({timeclock}) ORDER BY created ASC";
         var createdMtdJql = $"{scope} AND created >= startOfMonth()";
         var resolvedMtdJql = $"{scope} AND resolved >= startOfMonth()";
+        var createdLastJql = $"{scope} AND created >= startOfMonth(-1) AND created < startOfMonth()";
+        var resolvedLastJql = $"{scope} AND resolved >= startOfMonth(-1) AND resolved < startOfMonth()";
 
         var openCount = await _client.CountAsync(openJql, cancellationToken);
         var waitingCount = await _client.CountAsync(waitingJql, cancellationToken);
         var createdMtd = await _client.CountAsync(createdMtdJql, cancellationToken);
         var resolvedMtd = await _client.CountAsync(resolvedMtdJql, cancellationToken);
+        var createdLast = await _client.CountAsync(createdLastJql, cancellationToken);
+        var resolvedLast = await _client.CountAsync(resolvedLastJql, cancellationToken);
 
         var pressing = await _client.SearchIssuesAsync(pressingJql, _options.MaxPressing, cancellationToken);
         var unanswered = await _client.SearchUnansweredAsync(unansweredJql, _options.MaxUnanswered, cancellationToken);
@@ -82,6 +86,8 @@ public sealed class JiraCollector : ICollector
             WaitingCount = waitingCount,
             CreatedThisMonth = createdMtd,
             ResolvedThisMonth = resolvedMtd,
+            CreatedLastMonth = createdLast,
+            ResolvedLastMonth = resolvedLast,
             Pressing = pressing,
             Unanswered = unanswered,
             Timeclock = timeclockIssues,

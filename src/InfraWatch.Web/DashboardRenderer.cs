@@ -301,6 +301,8 @@ public static class DashboardRenderer
           .Append("<div class=\"legend\"><span class=\"sw\" style=\"background:#2b6cb0\"></span><b>Created</b>")
           .Append("<span class=\"sw\" style=\"background:#1f9d55\"></span><b>Resolved</b></div></div>");
 
+        RenderMonthCompare(sb, jira.CreatedLastMonth, jira.ResolvedLastMonth);
+
         IssueTable(sb, "Most pressing tickets", jira.Pressing, showPriority: true);
         IssueTable(sb, "Unanswered > 1 day", jira.Unanswered, showPriority: false);
         if (jira.Timeclock.Count > 0)
@@ -423,6 +425,32 @@ public static class DashboardRenderer
         sb.Append(Line(t => t.Resolved, "#1f9d55"));
         sb.Append("</svg>");
         return sb.ToString();
+    }
+
+    private static void RenderMonthCompare(StringBuilder sb, int opened, int closed)
+    {
+        var max = Math.Max(1, Math.Max(opened, closed));
+        var net = closed - opened;
+        string netLabel = net > 0
+            ? $"<span style=\"color:var(--ok)\">▼ backlog shrank by {net}</span> — closed more than opened"
+            : net < 0
+                ? $"<span style=\"color:var(--crit)\">▲ backlog grew by {-net}</span> — opened more than closed"
+                : "even — closed exactly as many as opened";
+
+        sb.Append("<div class=\"card\"><b>Last month — opened vs. closed</b>");
+        CompareBar(sb, "Opened", opened, max, "#2b6cb0");
+        CompareBar(sb, "Closed", closed, max, "#1f9d55");
+        sb.Append($"<div class=\"muted\" style=\"margin-top:8px\">{netLabel}</div></div>");
+    }
+
+    private static void CompareBar(StringBuilder sb, string label, int value, int max, string color)
+    {
+        var pct = (value * 100.0 / max).ToString("0.#", CultureInfo.InvariantCulture);
+        sb.Append("<div style=\"display:flex;align-items:center;gap:10px;margin-top:8px\">")
+          .Append($"<div style=\"width:64px;color:var(--muted)\">{Enc(label)}</div>")
+          .Append("<div style=\"flex:1;background:var(--line);border-radius:4px;height:18px;overflow:hidden\">")
+          .Append($"<div style=\"width:{pct}%;background:{color};height:100%\"></div></div>")
+          .Append($"<div style=\"width:46px;text-align:right;font-weight:700\">{value}</div></div>");
     }
 
     private static string BuildSparkline(IReadOnlyList<HealthRecord> history)
