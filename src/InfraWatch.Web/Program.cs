@@ -11,6 +11,14 @@ var builder = WebApplication.CreateBuilder(args);
 // Run correctly under the Windows Service Control Manager when installed as a service.
 builder.Host.UseWindowsService();
 
+// Load secrets in EVERY environment (CreateBuilder only loads user-secrets in Development):
+//  - user-secrets: works for local runs as your own user account
+//  - appsettings.Local.json: a gitignored file next to the app — the right place for a
+//    deployed Windows service (whose service account can't see your dev user-secrets)
+// Env vars (e.g. Jira__ApiToken) also work and override these.
+builder.Configuration.AddUserSecrets(System.Reflection.Assembly.GetExecutingAssembly(), optional: true);
+builder.Configuration.AddJsonFile("appsettings.Local.json", optional: true, reloadOnChange: true);
+
 // Store -> engine -> collectors/integrations, all hosted in this one web process.
 builder.Services.AddSqliteStore(o =>
 {
