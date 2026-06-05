@@ -3,6 +3,7 @@ using InfraWatch.Collectors.ActiveDirectory;
 using InfraWatch.Collectors.Dns;
 using InfraWatch.Collectors.HostNet;
 using InfraWatch.Collectors.HyperV;
+using InfraWatch.Collectors.Smb;
 using InfraWatch.Core;
 using InfraWatch.Engine;
 using InfraWatch.Integrations.Jira;
@@ -35,6 +36,7 @@ builder.Services.AddHostNetCollector(builder.Configuration);
 builder.Services.AddDnsCollector(builder.Configuration);
 builder.Services.AddActiveDirectoryCollector(builder.Configuration);
 builder.Services.AddHyperVCollector(builder.Configuration);
+builder.Services.AddSmbCollector(builder.Configuration);
 builder.Services.AddJiraIntegration(builder.Configuration);
 
 var app = builder.Build();

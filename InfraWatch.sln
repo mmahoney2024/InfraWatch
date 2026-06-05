@@ -29,6 +29,8 @@ Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "InfraWatch.Collectors.Activ
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "InfraWatch.Collectors.HyperV", "src\Collectors\InfraWatch.Collectors.HyperV\InfraWatch.Collectors.HyperV.csproj", "{6CD14A94-9386-496C-BB03-E4B32454F725}"
 EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "InfraWatch.Collectors.Smb", "src\Collectors\InfraWatch.Collectors.Smb\InfraWatch.Collectors.Smb.csproj", "{A3BBBB3E-A1DE-4637-9EB9-12368D4AB245}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
@@ -171,6 +173,18 @@ Global
 		{6CD14A94-9386-496C-BB03-E4B32454F725}.Release|x64.Build.0 = Release|Any CPU
 		{6CD14A94-9386-496C-BB03-E4B32454F725}.Release|x86.ActiveCfg = Release|Any CPU
 		{6CD14A94-9386-496C-BB03-E4B32454F725}.Release|x86.Build.0 = Release|Any CPU
+		{A3BBBB3E-A1DE-4637-9EB9-12368D4AB245}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{A3BBBB3E-A1DE-4637-9EB9-12368D4AB245}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{A3BBBB3E-A1DE-4637-9EB9-12368D4AB245}.Debug|x64.ActiveCfg = Debug|Any CPU
+		{A3BBBB3E-A1DE-4637-9EB9-12368D4AB245}.Debug|x64.Build.0 = Debug|Any CPU
+		{A3BBBB3E-A1DE-4637-9EB9-12368D4AB245}.Debug|x86.ActiveCfg = Debug|Any CPU
+		{A3BBBB3E-A1DE-4637-9EB9-12368D4AB245}.Debug|x86.Build.0 = Debug|Any CPU
+		{A3BBBB3E-A1DE-4637-9EB9-12368D4AB245}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{A3BBBB3E-A1DE-4637-9EB9-12368D4AB245}.Release|Any CPU.Build.0 = Release|Any CPU
+		{A3BBBB3E-A1DE-4637-9EB9-12368D4AB245}.Release|x64.ActiveCfg = Release|Any CPU
+		{A3BBBB3E-A1DE-4637-9EB9-12368D4AB245}.Release|x64.Build.0 = Release|Any CPU
+		{A3BBBB3E-A1DE-4637-9EB9-12368D4AB245}.Release|x86.ActiveCfg = Release|Any CPU
+		{A3BBBB3E-A1DE-4637-9EB9-12368D4AB245}.Release|x86.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE
@@ -188,5 +202,6 @@ Global
 		{FFB16C33-7D1F-4E26-88D8-EEDCAEB68A09} = {2B1A7103-10B8-1CED-32B1-464281A82908}
 		{08BE3F35-DE14-402B-A1EA-A20DC9C13F2D} = {2B1A7103-10B8-1CED-32B1-464281A82908}
 		{6CD14A94-9386-496C-BB03-E4B32454F725} = {2B1A7103-10B8-1CED-32B1-464281A82908}
+		{A3BBBB3E-A1DE-4637-9EB9-12368D4AB245} = {2B1A7103-10B8-1CED-32B1-464281A82908}
 	EndGlobalSection
 EndGlobal

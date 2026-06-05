@@ -137,6 +137,8 @@ collector host and web host are separate machines sharing a database. Full steps
 - ✅ **Hyper-V collector** — per host (WMI, integrated auth): reachability, CPU %, free RAM %,
   VM states, checkpoint sprawl; host + VM inventory. Verified live against `fs-aio` (10 VMs
   running); unreachable hosts correctly flagged Critical.
+- ✅ **SMB collector** — per-share access-check (connect/auth/list latency, opt-in canary
+  write) + per-host share enumeration (WMI) for inventory. Verified live against `fs-aio`.
 - ✅ **Roll-up / drill-down dashboard** — overview tiles → pillar (checks + inventory) →
   check (latest + value sparkline + history), with breadcrumbs.
 - ✅ **Pillar-generic dashboard** — tiles + check tables render per infra pillar present, so
