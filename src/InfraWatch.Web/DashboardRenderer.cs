@@ -304,7 +304,7 @@ public static class DashboardRenderer
         RenderMonthCompare(sb, jira.CreatedThisMonth, jira.ResolvedThisMonth,
             jira.CreatedLastMonthToDate, jira.ResolvedLastMonthToDate);
 
-        IssueTable(sb, "Most pressing tickets", jira.Pressing, showPriority: true);
+        IssueTable(sb, "Most pressing tickets", jira.Pressing, showPriority: true, showLastReply: true);
         IssueTable(sb, "Unanswered > 1 day", jira.Unanswered, showPriority: false);
         if (jira.Timeclock.Count > 0)
             IssueTable(sb, "⏰ Open timeclock tickets", jira.Timeclock, showPriority: false);
@@ -368,7 +368,8 @@ public static class DashboardRenderer
         _ => pillar,
     };
 
-    private static void IssueTable(StringBuilder sb, string title, IReadOnlyList<JiraIssue> issues, bool showPriority)
+    private static void IssueTable(StringBuilder sb, string title, IReadOnlyList<JiraIssue> issues,
+        bool showPriority, bool showLastReply = false)
     {
         sb.Append($"<div class=\"card\"><b>{Enc(title)}</b> <span class=\"muted\">({issues.Count})</span>");
         if (issues.Count == 0)
@@ -378,7 +379,9 @@ public static class DashboardRenderer
         }
         sb.Append("<table><tr><th>Key</th><th>Summary</th>");
         if (showPriority) sb.Append("<th>Priority</th>");
-        sb.Append("<th>Status</th><th>Age</th><th>Project</th></tr>");
+        sb.Append("<th>Status</th><th>Age</th>");
+        if (showLastReply) sb.Append("<th>Last support reply</th>");
+        sb.Append("<th>Project</th></tr>");
         foreach (var i in issues)
         {
             sb.Append("<tr>")
@@ -386,11 +389,20 @@ public static class DashboardRenderer
               .Append($"<td>{Enc(Trunc(i.Summary, 80))}</td>");
             if (showPriority) sb.Append($"<td>{Enc(i.Priority)}</td>");
             sb.Append($"<td>{Enc(i.Status)}</td>")
-              .Append($"<td>{FmtAge(i.AgeHours)}</td>")
-              .Append($"<td>{Enc(i.Project)}</td>")
+              .Append($"<td>{FmtAge(i.AgeHours)}</td>");
+            if (showLastReply) sb.Append($"<td>{FmtReply(i.LastSupportReply)}</td>");
+            sb.Append($"<td>{Enc(i.Project)}</td>")
               .Append("</tr>");
         }
         sb.Append("</table></div>");
+    }
+
+    private static string FmtReply(DateTimeOffset? when)
+    {
+        if (when is null)
+            return "<span style=\"color:var(--crit)\">none</span>";
+        var ageH = (DateTimeOffset.UtcNow - when.Value).TotalHours;
+        return $"{when.Value.ToLocalTime():MM-dd HH:mm} <span class=\"muted\">({FmtAge(ageH)})</span>";
     }
 
     private static string BuildChart(IReadOnlyList<DayCount> trend)

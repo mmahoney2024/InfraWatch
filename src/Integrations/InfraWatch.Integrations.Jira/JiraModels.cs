@@ -11,7 +11,8 @@ public sealed record JiraIssue(
     string? Assignee,
     DateTimeOffset Created,
     double AgeHours,
-    string Url);
+    string Url,
+    DateTimeOffset? LastSupportReply = null);
 
 /// <summary>Created/resolved counts for a single day, for the month line graph.</summary>
 public sealed record DayCount(string Date, int Created, int Resolved);

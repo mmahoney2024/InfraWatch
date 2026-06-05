@@ -71,7 +71,7 @@ public sealed class JiraCollector : ICollector
         var createdLast = await _client.CountAsync(createdLastJql, cancellationToken);
         var resolvedLast = await _client.CountAsync(resolvedLastJql, cancellationToken);
 
-        var pressing = await _client.SearchIssuesAsync(pressingJql, _options.MaxPressing, cancellationToken);
+        var pressing = await _client.SearchIssuesWithRepliesAsync(pressingJql, _options.MaxPressing, cancellationToken);
         var unanswered = await _client.SearchUnansweredAsync(unansweredJql, _options.MaxUnanswered, cancellationToken);
         var timeclockIssues = await _client.SearchIssuesAsync(timeclockJql, _options.MaxTimeclock, cancellationToken);
 

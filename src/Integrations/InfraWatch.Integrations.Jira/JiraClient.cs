@@ -51,6 +51,16 @@ public sealed class JiraClient
         return issues;
     }
 
+    /// <summary>Like <see cref="SearchIssuesAsync"/> but pulls comments too, so each issue's
+    /// <see cref="JiraIssue.LastSupportReply"/> (last agent comment) is populated.</summary>
+    public async Task<List<JiraIssue>> SearchIssuesWithRepliesAsync(string jql, int cap, CancellationToken ct)
+    {
+        var issues = new List<JiraIssue>();
+        await foreach (var el in EnumerateAsync(jql, cap, UnansweredFields, ct))
+            issues.Add(MapIssue(el));
+        return issues;
+    }
+
     /// <summary>
     /// Search for unanswered issues: candidates from the JQL, then keep only those with no
     /// public reply from anyone other than the reporter (a proxy for "first response not
@@ -163,7 +173,33 @@ public sealed class JiraClient
         var ageHours = Math.Max(0, (DateTimeOffset.UtcNow - created).TotalHours);
         var url = $"{_options.BaseUrl.TrimEnd('/')}/browse/{key}";
 
-        return new JiraIssue(key, summary, project, status, statusCategory, priority, assignee, created, ageHours, url);
+        return new JiraIssue(key, summary, project, status, statusCategory, priority, assignee, created, ageHours, url, LastAgentComment(issue));
+    }
+
+    /// <summary>Timestamp of the most recent comment from a real agent (accountType
+    /// "atlassian"), or null if support hasn't replied. Requires the "comment" field.</summary>
+    private static DateTimeOffset? LastAgentComment(JsonElement issue)
+    {
+        if (!issue.TryGetProperty("fields", out var f) || !f.TryGetProperty("comment", out var c)
+            || c.ValueKind != JsonValueKind.Object
+            || !c.TryGetProperty("comments", out var comments) || comments.ValueKind != JsonValueKind.Array)
+        {
+            return null;
+        }
+
+        DateTimeOffset? latest = null;
+        foreach (var comment in comments.EnumerateArray())
+        {
+            if (comment.TryGetProperty("author", out var a) && a.ValueKind == JsonValueKind.Object
+                && Str(a, "accountType") == "atlassian"
+                && comment.TryGetProperty("created", out var cr) && cr.ValueKind == JsonValueKind.String
+                && DateTimeOffset.TryParse(cr.GetString(), out var when)
+                && (latest is null || when > latest))
+            {
+                latest = when;
+            }
+        }
+        return latest;
     }
 
     /// <summary>
