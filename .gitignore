@@ -1,0 +1,66 @@
+# Build output
+[Bb]in/
+[Oo]bj/
+[Oo]ut/
+[Dd]ebug/
+[Rr]elease/
+x64/
+x86/
+[Aa][Rr][Mm]/
+[Aa][Rr][Mm]64/
+artifacts/
+publish/
+
+# .NET
+project.lock.json
+project.fragment.lock.json
+*.nupkg
+*.snupkg
+*.user
+*.suo
+*.userprefs
+.vs/
+*.binlog
+
+# Rider / Visual Studio
+.idea/
+_ReSharper*/
+*.DotSettings.user
+
+# VS Code (keep shared settings if any are added later)
+.vscode/*
+!.vscode/extensions.json
+!.vscode/settings.shared.json
+
+# Test results
+[Tt]est[Rr]esult*/
+*.trx
+*.coverage
+*.coverlet.json
+coverage*.json
+coverage*.xml
+coverage*.info
+
+# Local runtime data — never commit measured infra data or the SQLite store
+*.db
+*.db-shm
+*.db-wal
+*.sqlite
+data/
+logs/
+*.log
+
+# Secrets & config — never commit credentials
+appsettings.*.local.json
+secrets.json
+*.pfx
+*.key
+.env
+.env.*
+
+# OS
+Thumbs.db
+ehthumbs.db
+Desktop.ini
+$RECYCLE.BIN/
+.DS_Store
