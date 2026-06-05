@@ -83,6 +83,13 @@ public sealed class VeeamCollector : ICollector
         DateTimeOffset? lastRun = job.TryGetProperty("lastRun", out var lr) && lr.ValueKind == JsonValueKind.String
             && DateTimeOffset.TryParse(lr.GetString(), out var d) ? d : null;
 
+        // A disabled job is intentionally off — don't alert on its old result.
+        if (string.Equals(status, "disabled", StringComparison.OrdinalIgnoreCase))
+        {
+            inventory.Add(JobInventory(name, type, result, status, lastRun));
+            return H(server, $"job {name}", HealthStatus.Healthy, null, null, $"disabled (last result: {result})");
+        }
+
         var baseStatus = result switch
         {
             "Success" => HealthStatus.Healthy,
@@ -103,18 +110,19 @@ public sealed class VeeamCollector : ICollector
             summary = $"RPO breach: no run in {age:0}h (last result {result})";
         }
 
-        inventory.Add(new InventoryRecord
-        {
-            Pillar = Pillar, Kind = "job", Key = name, Name = name,
-            Attributes = new Dictionary<string, string>
-            {
-                ["type"] = type, ["lastResult"] = result, ["status"] = status,
-                ["lastRun"] = lastRun?.ToLocalTime().ToString("u") ?? "",
-            },
-        });
-
+        inventory.Add(JobInventory(name, type, result, status, lastRun));
         return H(server, $"job {name}", hs, ageH, ageH is null ? null : "h", summary);
     }
+
+    private static InventoryRecord JobInventory(string name, string type, string result, string status, DateTimeOffset? lastRun) => new()
+    {
+        Pillar = Pillar, Kind = "job", Key = name, Name = name,
+        Attributes = new Dictionary<string, string>
+        {
+            ["type"] = type, ["lastResult"] = result, ["status"] = status,
+            ["lastRun"] = lastRun?.ToLocalTime().ToString("u") ?? "",
+        },
+    };
 
     private HealthRecord MapRepo(string server, JsonElement repo, List<InventoryRecord> inventory)
     {
