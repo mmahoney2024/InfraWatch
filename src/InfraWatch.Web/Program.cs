@@ -37,13 +37,31 @@ builder.Services.AddJiraIntegration(builder.Configuration);
 
 var app = builder.Build();
 
-// One pane of glass.
+static bool IsDark(HttpContext http) =>
+    http.Request.Cookies.TryGetValue("iw-theme", out var t)
+    && string.Equals(t, "dark", StringComparison.OrdinalIgnoreCase);
+
+// Overview — the wall of tiles + Jira widgets.
 app.MapGet("/", async (HttpContext http, IStore store, JiraSnapshotCache jira) =>
 {
     var health = await store.GetLatestHealthAsync();
-    var dark = http.Request.Cookies.TryGetValue("iw-theme", out var t)
-               && string.Equals(t, "dark", StringComparison.OrdinalIgnoreCase);
-    return Results.Content(DashboardRenderer.Render(health, jira.Current, dark), "text/html");
+    return Results.Content(DashboardRenderer.RenderOverview(health, jira.Current, IsDark(http)), "text/html");
+});
+
+// Drill 1 — one pillar's checks + inventory.
+app.MapGet("/pillar", async (string name, HttpContext http, IStore store) =>
+{
+    var health = await store.GetLatestHealthAsync();
+    var inventory = await store.GetLatestInventoryAsync(name);
+    return Results.Content(DashboardRenderer.RenderPillar(name, health, inventory, IsDark(http)), "text/html");
+});
+
+// Drill 2 — a single check's latest state + history.
+app.MapGet("/check", async (string pillar, string target, string check, HttpContext http, IStore store) =>
+{
+    var since = DateTimeOffset.UtcNow.AddDays(-1);
+    var history = await store.GetHealthHistoryAsync(pillar, target, check, since);
+    return Results.Content(DashboardRenderer.RenderCheck(pillar, target, check, history, IsDark(http)), "text/html");
 });
 
 // Machine-readable state, handy for debugging / a future SPA.
