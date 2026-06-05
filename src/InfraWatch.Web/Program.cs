@@ -43,17 +43,25 @@ static bool IsDark(HttpContext http) =>
     http.Request.Cookies.TryGetValue("iw-theme", out var t)
     && string.Equals(t, "dark", StringComparison.OrdinalIgnoreCase);
 
+// Show only checks seen recently, so a removed/renamed check ages out of the live view
+// instead of lingering forever. (A failing check still updates every cycle, so it stays.)
+static IReadOnlyList<HealthRecord> Fresh(IReadOnlyList<HealthRecord> health)
+{
+    var cutoff = DateTimeOffset.UtcNow.AddMinutes(-15);
+    return health.Where(h => h.Timestamp >= cutoff).ToList();
+}
+
 // Overview — the wall of tiles + Jira widgets.
 app.MapGet("/", async (HttpContext http, IStore store, JiraSnapshotCache jira) =>
 {
-    var health = await store.GetLatestHealthAsync();
+    var health = Fresh(await store.GetLatestHealthAsync());
     return Results.Content(DashboardRenderer.RenderOverview(health, jira.Current, IsDark(http)), "text/html");
 });
 
 // Drill 1 — one pillar's checks + inventory.
 app.MapGet("/pillar", async (string name, HttpContext http, IStore store) =>
 {
-    var health = await store.GetLatestHealthAsync();
+    var health = Fresh(await store.GetLatestHealthAsync());
     var inventory = await store.GetLatestInventoryAsync(name);
     return Results.Content(DashboardRenderer.RenderPillar(name, health, inventory, IsDark(http)), "text/html");
 });
@@ -69,7 +77,7 @@ app.MapGet("/check", async (string pillar, string target, string check, HttpCont
 // Machine-readable state, handy for debugging / a future SPA.
 app.MapGet("/api/state", async (IStore store, JiraSnapshotCache jira) =>
 {
-    var health = await store.GetLatestHealthAsync();
+    var health = Fresh(await store.GetLatestHealthAsync());
     return Results.Json(new { health, jira = jira.Current });
 });
 
