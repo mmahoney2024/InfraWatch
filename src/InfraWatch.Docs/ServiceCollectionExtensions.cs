@@ -5,9 +5,14 @@ namespace InfraWatch.Docs;
 
 public static class ServiceCollectionExtensions
 {
-    /// <summary>Registers the documentation generators.</summary>
-    public static IServiceCollection AddDocs(this IServiceCollection services)
+    /// <summary>Registers the documentation generators and binds the physical-asset catalog
+    /// (from the "Assets" config section) that enriches the report.</summary>
+    public static IServiceCollection AddDocs(this IServiceCollection services, IConfiguration? config = null)
     {
+        var builder = services.AddOptions<AssetCatalogOptions>();
+        if (config is not null)
+            builder.Bind(config.GetSection("Assets"));
+
         services.AddSingleton<NetworkReport>();
         return services;
     }

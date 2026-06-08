@@ -1,6 +1,8 @@
+using System.Globalization;
 using System.Text;
 using InfraWatch.Core;
 using Markdig;
+using Microsoft.Extensions.Options;
 
 namespace InfraWatch.Docs;
 
@@ -18,8 +20,13 @@ public sealed class NetworkReport
         new MarkdownPipelineBuilder().UseAdvancedExtensions().Build();
 
     private readonly IStore _store;
+    private readonly AssetCatalogOptions _assets;
 
-    public NetworkReport(IStore store) => _store = store;
+    public NetworkReport(IStore store, IOptions<AssetCatalogOptions> assets)
+    {
+        _store = store;
+        _assets = assets.Value;
+    }
 
     public async Task<string> GenerateHtmlBodyAsync(CancellationToken ct = default) =>
         Markdown.ToHtml(await GenerateMarkdownAsync(ct), Pipeline);
@@ -34,6 +41,15 @@ public sealed class NetworkReport
         sb.AppendLine("# InfraWatch — State of the Network").AppendLine();
         sb.AppendLine($"*Generated {DateTimeOffset.Now:yyyy-MM-dd HH:mm} — a rendering of measured reality, not hand-maintained.*")
           .AppendLine();
+
+        // Cross-links to the curated documentation set.
+        var links = new List<string>();
+        if (!string.IsNullOrWhiteSpace(_assets.InfrastructureDocUrl))
+            links.Add($"📚 Part of [Infrastructure Documentation]({_assets.InfrastructureDocUrl})");
+        if (!string.IsNullOrWhiteSpace(_assets.InventoryPageUrl))
+            links.Add($"🗄️ Full hardware / rack / VM detail: [Servers, VMs & Rack Inventory]({_assets.InventoryPageUrl})");
+        if (links.Count > 0)
+            sb.AppendLine(string.Join(" · ", links)).AppendLine();
 
         // Overall status banner — the headline color.
         var warnAll = health.Count(h => h.Status == HealthStatus.Warning);
@@ -57,6 +73,8 @@ public sealed class NetworkReport
             sb.AppendLine($"| {Dot(Worst(recs))} | {PillarName(p)} | {recs.Count} | {ok} | {(wn > 0 ? wn.ToString() : "—")} | {(cr > 0 ? $"**{cr}**" : "—")} |");
         }
         sb.AppendLine();
+
+        AppendPhysicalAssets(sb);
 
         var changes = await _store.GetRecentChangesAsync(40, ct);
         if (changes.Count > 0)
@@ -156,6 +174,61 @@ public sealed class NetworkReport
         "file" => "Files",
         _ => kind,
     };
+
+    /// <summary>Renders the physical-asset layer (servers + storage) sourced from the inventory
+    /// page, with a warranty/EOL callout. Skipped entirely if no asset data is configured.</summary>
+    private void AppendPhysicalAssets(StringBuilder sb)
+    {
+        if (!_assets.HasData) return;
+
+        sb.AppendLine("## 🖥️ Physical Assets & Hardware").AppendLine();
+        sb.AppendLine("The physical servers and storage backing the services monitored above. " +
+            "Rack/FC/WWPN detail, networking, and the complete VM list live in the inventory page" +
+            (string.IsNullOrWhiteSpace(_assets.InventoryPageUrl) ? "." : $" — [Servers, VMs & Rack Inventory]({_assets.InventoryPageUrl})."))
+          .AppendLine();
+
+        var expired = _assets.Servers.Concat(_assets.Storage).Where(a => IsExpired(a.Warranty)).ToList();
+        if (expired.Count > 0)
+        {
+            sb.AppendLine($"**⚠️ Hardware attention — {expired.Count} asset{(expired.Count == 1 ? "" : "s")} past warranty / EOL:**").AppendLine();
+            foreach (var a in expired)
+                sb.AppendLine($"- ⚠️ `{Esc(a.Name)}` — {Esc(a.Model)}, warranty expired {Esc(a.Warranty)}");
+            sb.AppendLine();
+        }
+
+        if (_assets.Servers.Count > 0)
+        {
+            sb.AppendLine("### Servers").AppendLine();
+            sb.AppendLine("| Host | Model | OS | Rack | Service Tag | RAM | Warranty | Purpose |");
+            sb.AppendLine("|---|---|---|---|---|---|---|---|");
+            foreach (var a in _assets.Servers)
+                sb.AppendLine($"| `{Esc(a.Name)}` | {Esc(a.Model)} | {Esc(a.Os)} | {Esc(a.Rack)} | `{Esc(a.ServiceTag)}` " +
+                    $"| {Esc(a.Ram)} | {WarrantyCell(a.Warranty)} | {Esc(a.Purpose)} |");
+            sb.AppendLine();
+        }
+
+        if (_assets.Storage.Count > 0)
+        {
+            sb.AppendLine("### Storage").AppendLine();
+            sb.AppendLine("| Array | Model | Capacity | Rack | Service Tag | Warranty | Purpose |");
+            sb.AppendLine("|---|---|---|---|---|---|---|");
+            foreach (var a in _assets.Storage)
+                sb.AppendLine($"| `{Esc(a.Name)}` | {Esc(a.Model)} | {Esc(a.Capacity)} | {Esc(a.Rack)} | `{Esc(a.ServiceTag)}` " +
+                    $"| {WarrantyCell(a.Warranty)} | {Esc(a.Purpose)} |");
+            sb.AppendLine();
+        }
+    }
+
+    private static bool TryWarranty(string w, out DateTime date) =>
+        DateTime.TryParse(w, CultureInfo.InvariantCulture, DateTimeStyles.None, out date);
+
+    private static bool IsExpired(string w) => TryWarranty(w, out var d) && d.Date < DateTime.Now.Date;
+
+    private static string WarrantyCell(string w)
+    {
+        if (string.IsNullOrWhiteSpace(w)) return "—";
+        return IsExpired(w) ? $"{Esc(w)} ⚠️" : Esc(w);
+    }
 
     private static string Dot(HealthStatus s) => s switch
     {

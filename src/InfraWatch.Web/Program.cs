@@ -35,7 +35,7 @@ builder.Services.AddSqliteStore(o =>
         o.DatabasePath = path;
 });
 builder.Services.AddEngine();
-builder.Services.AddDocs();
+builder.Services.AddDocs(builder.Configuration);
 builder.Services.AddDocsExport(builder.Configuration);
 builder.Services.AddAlerting(builder.Configuration);
 builder.Services.AddHostNetCollector(builder.Configuration);

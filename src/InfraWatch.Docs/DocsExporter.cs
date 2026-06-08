@@ -84,14 +84,24 @@ public sealed class DocsExporter : BackgroundService
         using var doc = JsonDocument.Parse(await getResp.Content.ReadAsStringAsync(ct));
         var version = doc.RootElement.GetProperty("version").GetProperty("number").GetInt32();
 
-        var payload = new
-        {
-            id = c.PageId,
-            type = "page",
-            title = c.Title,
-            version = new { number = version + 1, message = "Updated by InfraWatch" },
-            body = new { storage = new { value = htmlBody, representation = "storage" } },
-        };
+        object payload = string.IsNullOrWhiteSpace(c.ParentPageId)
+            ? new
+            {
+                id = c.PageId,
+                type = "page",
+                title = c.Title,
+                version = new { number = version + 1, message = "Updated by InfraWatch" },
+                body = new { storage = new { value = htmlBody, representation = "storage" } },
+            }
+            : new
+            {
+                id = c.PageId,
+                type = "page",
+                title = c.Title,
+                version = new { number = version + 1, message = "Updated by InfraWatch" },
+                ancestors = new[] { new { id = c.ParentPageId } },
+                body = new { storage = new { value = htmlBody, representation = "storage" } },
+            };
         using var putResp = await http.PutAsJsonAsync($"{baseUrl}/rest/api/content/{c.PageId}", payload, ct);
         putResp.EnsureSuccessStatusCode();
         _logger.LogInformation("Published report to Confluence page {PageId}", c.PageId);

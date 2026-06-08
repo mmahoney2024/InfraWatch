@@ -28,6 +28,10 @@ public sealed class DocsExportOptions
         /// <summary>The page to update (it must already exist).</summary>
         public string PageId { get; set; } = "";
 
+        /// <summary>Optional parent page; when set, every publish re-asserts this page's parent
+        /// so it stays filed under (e.g.) "Infrastructure Documentation".</summary>
+        public string ParentPageId { get; set; } = "";
+
         public string Title { get; set; } = "InfraWatch — State of the Network";
 
         public bool IsConfigured =>
