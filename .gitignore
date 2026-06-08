@@ -41,6 +41,9 @@ coverage*.json
 coverage*.xml
 coverage*.info
 
+# Generated documentation export (a rendering of live data, not source)
+state-of-the-network.md
+
 # Local runtime data — never commit measured infra data or the SQLite store
 *.db
 *.db-shm

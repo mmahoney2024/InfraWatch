@@ -142,8 +142,12 @@ collector host and web host are separate machines sharing a database. Full steps
 - ✅ **DHCP collector** — per server (DhcpServer PowerShell module): service reachability +
   per-scope pool pressure (% in use); scope inventory. Verified live against `fs-dhcp05` +
   `fsdhcp03` (failover pair).
-- ✅ **Roll-up / drill-down dashboard** — overview tiles → pillar (checks + inventory) →
-  check (latest + value sparkline + history), with breadcrumbs.
+- ✅ **Roll-up / drill-down dashboard** — overview tiles → pillar (servers) → server
+  (checks + inventory) → check (latest + value sparkline + history), with breadcrumbs.
+- ✅ **Docs (InfraWatch.Docs)** — the self-maintaining documentation: a generated
+  "State of the Network" report (Markdown + HTML at `/docs`, `/docs/report.md`), a
+  change/drift log (inventory added/removed, `/docs/changes`), and a scheduled exporter
+  (file + optional Confluence publish).
 - ✅ **Pillar-generic dashboard** — tiles + check tables render per infra pillar present, so
   new pillars appear with no renderer changes. Dark-mode toggle (cookie-persisted).
 - ✅ **Jira integration** — REST client + JQL for all six widgets across IMS/CHG/CSI;
