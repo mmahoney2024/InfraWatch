@@ -32,8 +32,43 @@ public static class DashboardRenderer
     {
         var sb = new StringBuilder();
         OpenPage(sb, dark, breadcrumb: "<a href=\"/\">Overview</a> › Documentation");
-        sb.Append("<div style=\"margin:6px 0 2px\"><a class=\"btn\" href=\"/docs/report.md\" download>⬇ Download Markdown</a></div>");
+        sb.Append("<div style=\"margin:6px 0 2px\"><a class=\"btn\" href=\"/docs/report.md\" download>⬇ Download Markdown</a> ")
+          .Append("<a class=\"btn\" href=\"/docs/changes\">Change log</a></div>");
         sb.Append($"<div class=\"doc\">{htmlBody}</div>");
+        ClosePage(sb);
+        return sb.ToString();
+    }
+
+    /// <summary>The change/drift log — inventory items added or removed over time.</summary>
+    public static string RenderChanges(IReadOnlyList<ChangeRecord> changes, bool dark = false)
+    {
+        var sb = new StringBuilder();
+        OpenPage(sb, dark, "<a href=\"/\">Overview</a> › <a href=\"/docs\">Documentation</a> › Change log");
+        sb.Append("<h2>Change log — inventory drift</h2>");
+
+        if (changes.Count == 0)
+        {
+            sb.Append("<div class=\"card muted\">No changes recorded yet. As items are added or removed (a share, a VM, a DHCP scope, a DC…) they'll appear here.</div>");
+        }
+        else
+        {
+            sb.Append("<div class=\"card\"><table><tr><th>When</th><th>Change</th><th>Pillar</th><th>Kind</th><th>Item</th></tr>");
+            foreach (var c in changes)
+            {
+                var badge = c.ChangeType == "added"
+                    ? "<span class=\"pill ok\">＋ added</span>"
+                    : "<span class=\"pill crit\">－ removed</span>";
+                sb.Append("<tr>")
+                  .Append($"<td class=\"muted\">{c.Timestamp.ToLocalTime():yyyy-MM-dd HH:mm}</td>")
+                  .Append($"<td>{badge}</td>")
+                  .Append($"<td>{Enc(PillarName(c.Pillar))}</td>")
+                  .Append($"<td>{Enc(c.Kind)}</td>")
+                  .Append($"<td>{Enc(c.Name)}</td>")
+                  .Append("</tr>");
+            }
+            sb.Append("</table></div>");
+        }
+
         ClosePage(sb);
         return sb.ToString();
     }

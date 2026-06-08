@@ -46,6 +46,17 @@ public sealed class NetworkReport
         }
         sb.AppendLine();
 
+        var changes = await _store.GetRecentChangesAsync(40, ct);
+        if (changes.Count > 0)
+        {
+            sb.AppendLine("## Recent changes").AppendLine();
+            sb.AppendLine("| When | Change | Pillar | Item |");
+            sb.AppendLine("|---|---|---|---|");
+            foreach (var c in changes)
+                sb.AppendLine($"| {c.Timestamp.ToLocalTime():yyyy-MM-dd HH:mm} | {c.ChangeType} | {PillarName(c.Pillar)} | {Esc(c.Name)} ({Esc(c.Kind)}) |");
+            sb.AppendLine();
+        }
+
         foreach (var p in pillars)
         {
             sb.AppendLine($"## {PillarName(p)}").AppendLine();

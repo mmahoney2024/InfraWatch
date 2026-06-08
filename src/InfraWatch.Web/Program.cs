@@ -112,6 +112,12 @@ app.MapGet("/docs/report.md", async (NetworkReport report) =>
     return Results.Text(md, "text/markdown");
 });
 
+app.MapGet("/docs/changes", async (HttpContext http, IStore store) =>
+{
+    var changes = await store.GetRecentChangesAsync(300);
+    return Results.Content(DashboardRenderer.RenderChanges(changes, IsDark(http)), "text/html");
+});
+
 app.MapGet("/healthz", () => Results.Text("ok"));
 
 // On-demand active DHCP offer/lease test (triggered by the button on a DHCP server page).

@@ -75,6 +75,18 @@ public sealed class SqliteStore : IStore
                 attributes TEXT
             );
             CREATE INDEX IF NOT EXISTS ix_inv_key ON inventory (pillar, kind, key, id);
+
+            CREATE TABLE IF NOT EXISTS change_log (
+                id          INTEGER PRIMARY KEY AUTOINCREMENT,
+                pillar      TEXT NOT NULL,
+                kind        TEXT NOT NULL,
+                key         TEXT NOT NULL,
+                name        TEXT NOT NULL,
+                change_type TEXT NOT NULL,
+                detail      TEXT,
+                ts          TEXT NOT NULL
+            );
+            CREATE INDEX IF NOT EXISTS ix_change_ts ON change_log (ts);
             """);
         _logger.LogInformation("SQLite store initialized at {ConnectionString}", _connectionString);
     }
@@ -115,6 +127,8 @@ public sealed class SqliteStore : IStore
         if (rows.Count == 0) return;
 
         await using var conn = Open();
+        var changes = await DetectChangesAsync(conn, rows);
+
         await using var tx = (SqliteTransaction)await conn.BeginTransactionAsync(cancellationToken);
         const string sql =
             """
@@ -133,7 +147,86 @@ public sealed class SqliteStore : IStore
                 Attributes = Serialize(r.Attributes),
             }, tx);
         }
+
+        if (changes.Count > 0)
+        {
+            const string changeSql =
+                """
+                INSERT INTO change_log (pillar, kind, key, name, change_type, detail, ts)
+                VALUES (@Pillar, @Kind, @Key, @Name, @ChangeType, @Detail, @Ts);
+                """;
+            var now = Iso(DateTimeOffset.UtcNow);
+            foreach (var c in changes)
+                await conn.ExecuteAsync(changeSql,
+                    new { c.Pillar, c.Kind, c.Key, c.Name, c.ChangeType, c.Detail, Ts = now }, tx);
+        }
+
         await tx.CommitAsync(cancellationToken);
+    }
+
+    /// <summary>Diff this batch's inventory keys against the latest stored set per pillar to
+    /// find added/removed items. Skips a pillar with no prior data (initial baseline).</summary>
+    private static async Task<List<ChangeRecord>> DetectChangesAsync(SqliteConnection conn, IReadOnlyList<InventoryRecord> rows)
+    {
+        var changes = new List<ChangeRecord>();
+        foreach (var grp in rows.GroupBy(r => r.Pillar))
+        {
+            var existing = (await conn.QueryAsync<KeyRow>(
+                """
+                SELECT kind, key, name FROM inventory
+                WHERE pillar = @pillar
+                  AND id IN (SELECT MAX(id) FROM inventory WHERE pillar = @pillar GROUP BY kind, key)
+                """, new { pillar = grp.Key })).ToList();
+
+            if (existing.Count == 0)
+                continue; // first time we've seen this pillar — baseline, not drift
+
+            var existingKeys = existing.Select(e => (e.Kind, e.Key)).ToHashSet();
+            var incomingKeys = grp.Select(r => (r.Kind, r.Key)).ToHashSet();
+
+            foreach (var r in grp)
+                if (!existingKeys.Contains((r.Kind, r.Key)))
+                    changes.Add(new ChangeRecord { Pillar = grp.Key, Kind = r.Kind, Key = r.Key, Name = r.Name, ChangeType = "added" });
+
+            foreach (var e in existing)
+                if (!incomingKeys.Contains((e.Kind, e.Key)))
+                    changes.Add(new ChangeRecord { Pillar = grp.Key, Kind = e.Kind, Key = e.Key, Name = e.Name, ChangeType = "removed" });
+        }
+        return changes;
+    }
+
+    public async Task<IReadOnlyList<ChangeRecord>> GetRecentChangesAsync(int limit = 200, CancellationToken cancellationToken = default)
+    {
+        await using var conn = Open();
+        var rows = await conn.QueryAsync<ChangeRow>(
+            """
+            SELECT pillar, kind, key, name, change_type, detail, ts
+            FROM change_log ORDER BY id DESC LIMIT @limit;
+            """, new { limit });
+        return rows.Select(r => new ChangeRecord
+        {
+            Pillar = r.Pillar, Kind = r.Kind, Key = r.Key, Name = r.Name,
+            ChangeType = r.ChangeType, Detail = r.Detail,
+            Timestamp = DateTimeOffset.Parse(r.Ts, null, System.Globalization.DateTimeStyles.RoundtripKind),
+        }).ToList();
+    }
+
+    private sealed class KeyRow
+    {
+        public string Kind { get; set; } = "";
+        public string Key { get; set; } = "";
+        public string Name { get; set; } = "";
+    }
+
+    private sealed class ChangeRow
+    {
+        public string Pillar { get; set; } = "";
+        public string Kind { get; set; } = "";
+        public string Key { get; set; } = "";
+        public string Name { get; set; } = "";
+        public string ChangeType { get; set; } = "";
+        public string? Detail { get; set; }
+        public string Ts { get; set; } = "";
     }
 
     public async Task<IReadOnlyList<HealthRecord>> GetLatestHealthAsync(CancellationToken cancellationToken = default)

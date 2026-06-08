@@ -24,4 +24,8 @@ public interface IStore
     /// <summary>Latest inventory record per key for a pillar — powers documentation views.</summary>
     Task<IReadOnlyList<InventoryRecord>> GetLatestInventoryAsync(
         string pillar, CancellationToken cancellationToken = default);
+
+    /// <summary>Recent inventory drift events (items added/removed), newest first.</summary>
+    Task<IReadOnlyList<ChangeRecord>> GetRecentChangesAsync(
+        int limit = 200, CancellationToken cancellationToken = default);
 }
