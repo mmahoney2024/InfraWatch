@@ -44,26 +44,31 @@ public static class DashboardRenderer
     {
         var sb = new StringBuilder();
         OpenPage(sb, dark, "<a href=\"/\">Overview</a> › <a href=\"/docs\">Documentation</a> › Change log");
-        sb.Append("<h2>Change log — inventory drift</h2>");
+        sb.Append("<h2>Change log — inventory &amp; configuration drift</h2>");
 
         if (changes.Count == 0)
         {
-            sb.Append("<div class=\"card muted\">No changes recorded yet. As items are added or removed (a share, a VM, a DHCP scope, a DC…) they'll appear here.</div>");
+            sb.Append("<div class=\"card muted\">No changes recorded yet. As items are added, removed, or reconfigured (a share repathed, a VM migrated to another host, an FSMO role moved, a cert reissued, a DHCP scope deactivated…) they'll appear here.</div>");
         }
         else
         {
-            sb.Append("<div class=\"card\"><table><tr><th>When</th><th>Change</th><th>Pillar</th><th>Kind</th><th>Item</th></tr>");
+            sb.Append("<div class=\"card\"><table><tr><th>When</th><th>Change</th><th>Pillar</th><th>Kind</th><th>Item</th><th>Detail</th></tr>");
             foreach (var c in changes)
             {
-                var badge = c.ChangeType == "added"
-                    ? "<span class=\"pill ok\">＋ added</span>"
-                    : "<span class=\"pill crit\">－ removed</span>";
+                var badge = c.ChangeType switch
+                {
+                    "added"   => "<span class=\"pill ok\">＋ added</span>",
+                    "removed" => "<span class=\"pill crit\">－ removed</span>",
+                    "changed" => "<span class=\"pill warn\">✎ changed</span>",
+                    _         => $"<span class=\"pill unknown\">{Enc(c.ChangeType)}</span>",
+                };
                 sb.Append("<tr>")
                   .Append($"<td class=\"muted\">{c.Timestamp.ToLocalTime():yyyy-MM-dd HH:mm}</td>")
                   .Append($"<td>{badge}</td>")
                   .Append($"<td>{Enc(PillarName(c.Pillar))}</td>")
                   .Append($"<td>{Enc(c.Kind)}</td>")
                   .Append($"<td>{Enc(c.Name)}</td>")
+                  .Append($"<td class=\"muted\">{Enc(c.Detail ?? "")}</td>")
                   .Append("</tr>");
             }
             sb.Append("</table></div>");

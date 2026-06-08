@@ -26,23 +26,35 @@ public sealed class NetworkReport
 
     public async Task<string> GenerateMarkdownAsync(CancellationToken ct = default)
     {
-        var health = await _store.GetLatestHealthAsync(ct);
-        var pillars = OrderPillars(health.Select(h => h.Pillar).Where(p => p != "Jira"));
+        var allHealth = await _store.GetLatestHealthAsync(ct);
+        var health = allHealth.Where(h => h.Pillar != "Jira").ToList();
+        var pillars = OrderPillars(health.Select(h => h.Pillar)).ToList();
 
         var sb = new StringBuilder();
         sb.AppendLine("# InfraWatch — State of the Network").AppendLine();
         sb.AppendLine($"*Generated {DateTimeOffset.Now:yyyy-MM-dd HH:mm} — a rendering of measured reality, not hand-maintained.*")
           .AppendLine();
 
+        // Overall status banner — the headline color.
+        var warnAll = health.Count(h => h.Status == HealthStatus.Warning);
+        var critAll = health.Count(h => h.Status is HealthStatus.Critical or HealthStatus.Unknown);
+        var banner = critAll > 0
+            ? $"🔴 **{critAll} critical**" + (warnAll > 0 ? $" · 🟡 {warnAll} warning{(warnAll == 1 ? "" : "s")}" : "")
+            : warnAll > 0
+                ? $"🟡 **{warnAll} warning{(warnAll == 1 ? "" : "s")}** · no critical issues"
+                : "🟢 **All systems healthy**";
+        sb.AppendLine($"> **Overall:** {banner} — {health.Count} checks across {pillars.Count} pillars.").AppendLine();
+
         sb.AppendLine("## Health summary").AppendLine();
-        sb.AppendLine("| Pillar | Checks | OK | Warning | Critical |");
-        sb.AppendLine("|---|--:|--:|--:|--:|");
+        sb.AppendLine("| | Pillar | Checks | 🟢 OK | 🟡 Warning | 🔴 Critical |");
+        sb.AppendLine("|:--:|---|--:|--:|--:|--:|");
         foreach (var p in pillars)
         {
             var recs = health.Where(h => h.Pillar == p).ToList();
-            sb.AppendLine($"| {PillarName(p)} | {recs.Count} | {recs.Count(h => h.Status == HealthStatus.Healthy)} " +
-                $"| {recs.Count(h => h.Status == HealthStatus.Warning)} " +
-                $"| {recs.Count(h => h.Status is HealthStatus.Critical or HealthStatus.Unknown)} |");
+            var ok = recs.Count(h => h.Status == HealthStatus.Healthy);
+            var wn = recs.Count(h => h.Status == HealthStatus.Warning);
+            var cr = recs.Count(h => h.Status is HealthStatus.Critical or HealthStatus.Unknown);
+            sb.AppendLine($"| {Dot(Worst(recs))} | {PillarName(p)} | {recs.Count} | {ok} | {(wn > 0 ? wn.ToString() : "—")} | {(cr > 0 ? $"**{cr}**" : "—")} |");
         }
         sb.AppendLine();
 
@@ -50,18 +62,19 @@ public sealed class NetworkReport
         if (changes.Count > 0)
         {
             sb.AppendLine("## Recent changes").AppendLine();
-            sb.AppendLine("| When | Change | Pillar | Item |");
-            sb.AppendLine("|---|---|---|---|");
+            sb.AppendLine("| When | Change | Pillar | Item | Detail |");
+            sb.AppendLine("|---|---|---|---|---|");
             foreach (var c in changes)
-                sb.AppendLine($"| {c.Timestamp.ToLocalTime():yyyy-MM-dd HH:mm} | {c.ChangeType} | {PillarName(c.Pillar)} | {Esc(c.Name)} ({Esc(c.Kind)}) |");
+                sb.AppendLine($"| {c.Timestamp.ToLocalTime():yyyy-MM-dd HH:mm} | {ChangeLabel(c.ChangeType)} | {PillarName(c.Pillar)} | {Esc(c.Name)} ({Esc(c.Kind)}) | {Esc(c.Detail ?? "")} |");
             sb.AppendLine();
         }
 
         foreach (var p in pillars)
         {
-            sb.AppendLine($"## {PillarName(p)}").AppendLine();
+            var precs = health.Where(h => h.Pillar == p).ToList();
+            sb.AppendLine($"## {Dot(Worst(precs))} {PillarName(p)}").AppendLine();
 
-            var problems = health.Where(h => h.Pillar == p && h.Status is HealthStatus.Warning or HealthStatus.Critical)
+            var problems = precs.Where(h => h.Status is HealthStatus.Warning or HealthStatus.Critical)
                 .OrderByDescending(h => h.Status).ToList();
             if (problems.Count > 0)
             {
@@ -142,6 +155,32 @@ public sealed class NetworkReport
         "boot-file" => "Boot Files",
         "file" => "Files",
         _ => kind,
+    };
+
+    private static string Dot(HealthStatus s) => s switch
+    {
+        HealthStatus.Healthy => "🟢",
+        HealthStatus.Warning => "🟡",
+        _ => "🔴",
+    };
+
+    private static HealthStatus Worst(IEnumerable<HealthRecord> recs)
+    {
+        var worst = HealthStatus.Healthy;
+        foreach (var h in recs)
+        {
+            if (h.Status is HealthStatus.Critical or HealthStatus.Unknown) return HealthStatus.Critical;
+            if (h.Status == HealthStatus.Warning) worst = HealthStatus.Warning;
+        }
+        return worst;
+    }
+
+    private static string ChangeLabel(string type) => type switch
+    {
+        "added" => "🟢 added",
+        "removed" => "🔴 removed",
+        "changed" => "🟡 changed",
+        _ => type,
     };
 
     private static string Esc(string s) =>

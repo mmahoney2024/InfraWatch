@@ -19,6 +19,22 @@ public sealed class SqliteStore : IStore
     /// <summary>Pillars whose inventory churns by design and must not feed the drift/change log.</summary>
     private static readonly HashSet<string> NonDriftPillars = new(StringComparer.OrdinalIgnoreCase) { "Jira" };
 
+    /// <summary>Inventory attributes that are *measured* (re-sampled every poll) rather than
+    /// *configuration*. Comparing them for drift would re-flood the change log with poll noise,
+    /// so they're excluded from config-change detection. Everything else (os, roles, FSMO holder,
+    /// share path, VM host, cert issuer, scope state, …) is treated as configuration.</summary>
+    private static readonly HashSet<string> VolatileAttributes = new(StringComparer.OrdinalIgnoreCase)
+    {
+        "latencyMs", "lastLatencyMs", "latency", "accessible",
+        "free", "inUse", "reserved", "percentInUse",
+        "daysToExpiry", "vmCount", "running",
+        "lastBackup", "ageDays", "restorePoints", "points", "lastRun", "lastResult", "status",
+        "freeGB", "usedGB", "freePct", "answers",
+    };
+
+    private static readonly IReadOnlyDictionary<string, string> EmptyAttrs =
+        new Dictionary<string, string>();
+
     static SqliteStore()
     {
         // Map columns like check_name -> CheckName without per-query aliases.
@@ -90,6 +106,14 @@ public sealed class SqliteStore : IStore
                 ts          TEXT NOT NULL
             );
             CREATE INDEX IF NOT EXISTS ix_change_ts ON change_log (ts);
+
+            CREATE TABLE IF NOT EXISTS pending_removal (
+                pillar          TEXT NOT NULL,
+                kind            TEXT NOT NULL,
+                key             TEXT NOT NULL,
+                first_missed_ts TEXT NOT NULL,
+                PRIMARY KEY (pillar, kind, key)
+            );
             """);
         _logger.LogInformation("SQLite store initialized at {ConnectionString}", _connectionString);
     }
@@ -181,7 +205,7 @@ public sealed class SqliteStore : IStore
 
             var existing = (await conn.QueryAsync<KeyRow>(
                 """
-                SELECT kind, key, name FROM inventory
+                SELECT kind, key, name, attributes FROM inventory
                 WHERE pillar = @pillar
                   AND id IN (SELECT MAX(id) FROM inventory WHERE pillar = @pillar GROUP BY kind, key)
                 """, new { pillar = grp.Key })).ToList();
@@ -189,19 +213,95 @@ public sealed class SqliteStore : IStore
             if (existing.Count == 0)
                 continue; // first time we've seen this pillar — baseline, not drift
 
-            var existingKeys = existing.Select(e => (e.Kind, e.Key)).ToHashSet();
+            var existingByKey = existing.ToDictionary(e => (e.Kind, e.Key));
             var incomingKeys = grp.Select(r => (r.Kind, r.Key)).ToHashSet();
 
             foreach (var r in grp)
-                if (!existingKeys.Contains((r.Kind, r.Key)))
+            {
+                if (!existingByKey.TryGetValue((r.Kind, r.Key), out var prior))
+                {
                     changes.Add(new ChangeRecord { Pillar = grp.Key, Kind = r.Kind, Key = r.Key, Name = r.Name, ChangeType = "added" });
+                }
+                else
+                {
+                    // Same item seen before — did its *configuration* change?
+                    var detail = DiffConfig(prior.Attributes, r.Attributes);
+                    if (detail is not null)
+                        changes.Add(new ChangeRecord
+                        {
+                            Pillar = grp.Key, Kind = r.Kind, Key = r.Key, Name = r.Name,
+                            ChangeType = "changed", Detail = detail,
+                        });
+                }
+            }
 
+            // Removals are debounced: a single transient collection miss (e.g. one WMI/LDAP poll
+            // failing to enumerate a host) must NOT be reported as "removed". We only confirm a
+            // removal once the item has been absent across two consecutive collections, tracked
+            // in pending_removal. Any item present this cycle clears its pending flag.
+            var priorPending = (await conn.QueryAsync<KeyRow>(
+                "SELECT kind, key FROM pending_removal WHERE pillar = @pillar", new { pillar = grp.Key }))
+                .Select(r => (r.Kind, r.Key)).ToHashSet();
+            await conn.ExecuteAsync("DELETE FROM pending_removal WHERE pillar = @pillar", new { pillar = grp.Key });
+
+            var nowIso = Iso(DateTimeOffset.UtcNow);
             foreach (var e in existing)
-                if (!incomingKeys.Contains((e.Kind, e.Key)))
+            {
+                if (incomingKeys.Contains((e.Kind, e.Key)))
+                    continue; // still present — nothing to do (pending already cleared above)
+
+                if (priorPending.Contains((e.Kind, e.Key)))
+                {
+                    // Missing again this cycle → confirmed removal.
                     changes.Add(new ChangeRecord { Pillar = grp.Key, Kind = e.Kind, Key = e.Key, Name = e.Name, ChangeType = "removed" });
+                }
+                else
+                {
+                    // First time we've missed it — tentatively flag, don't report yet.
+                    await conn.ExecuteAsync(
+                        "INSERT INTO pending_removal (pillar, kind, key, first_missed_ts) VALUES (@Pillar, @Kind, @Key, @Ts)",
+                        new { Pillar = grp.Key, e.Kind, e.Key, Ts = nowIso });
+                }
+            }
         }
         return changes;
     }
+
+    /// <summary>Compares the configuration (non-volatile) attributes of a prior vs. current
+    /// inventory record. Returns a human-readable "key: old → new" summary of what changed, or
+    /// null if no configuration attribute differs.</summary>
+    private static string? DiffConfig(string? priorJson, IReadOnlyDictionary<string, string>? incoming)
+    {
+        var prior = Deserialize(priorJson) ?? EmptyAttrs;
+        var current = incoming ?? EmptyAttrs;
+
+        var keys = prior.Keys.Concat(current.Keys)
+            .Where(k => !VolatileAttributes.Contains(k))
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .OrderBy(k => k, StringComparer.OrdinalIgnoreCase);
+
+        var diffs = new List<string>();
+        foreach (var k in keys)
+        {
+            var ov = prior.TryGetValue(k, out var a) ? a : "";
+            var nv = current.TryGetValue(k, out var b) ? b : "";
+            if (!string.Equals(ov, nv, StringComparison.Ordinal))
+                diffs.Add($"{k}: {Trunc(ov)} → {Trunc(nv)}");
+        }
+
+        if (diffs.Count == 0) return null;
+        const int max = 5;
+        if (diffs.Count > max)
+        {
+            var shown = diffs.Take(max).ToList();
+            shown.Add($"+{diffs.Count - max} more");
+            return string.Join("; ", shown);
+        }
+        return string.Join("; ", diffs);
+    }
+
+    private static string Trunc(string s) =>
+        string.IsNullOrEmpty(s) ? "(none)" : s.Length <= 60 ? s : s[..57] + "…";
 
     public async Task<IReadOnlyList<ChangeRecord>> GetRecentChangesAsync(int limit = 200, CancellationToken cancellationToken = default)
     {
@@ -224,6 +324,7 @@ public sealed class SqliteStore : IStore
         public string Kind { get; set; } = "";
         public string Key { get; set; } = "";
         public string Name { get; set; } = "";
+        public string? Attributes { get; set; }
     }
 
     private sealed class ChangeRow
