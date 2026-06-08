@@ -8,6 +8,7 @@ using InfraWatch.Collectors.Imaging;
 using InfraWatch.Collectors.Smb;
 using InfraWatch.Collectors.Veeam;
 using InfraWatch.Core;
+using InfraWatch.Docs;
 using InfraWatch.Engine;
 using InfraWatch.Integrations.Jira;
 using InfraWatch.Storage;
@@ -34,6 +35,7 @@ builder.Services.AddSqliteStore(o =>
         o.DatabasePath = path;
 });
 builder.Services.AddEngine();
+builder.Services.AddDocs();
 builder.Services.AddAlerting(builder.Configuration);
 builder.Services.AddHostNetCollector(builder.Configuration);
 builder.Services.AddDnsCollector(builder.Configuration);
@@ -95,6 +97,19 @@ app.MapGet("/api/state", async (IStore store, JiraSnapshotCache jira) =>
 {
     var health = Fresh(await store.GetLatestHealthAsync());
     return Results.Json(new { health, jira = jira.Current });
+});
+
+// Generated documentation — "State of the Network".
+app.MapGet("/docs", async (HttpContext http, NetworkReport report) =>
+{
+    var body = await report.GenerateHtmlBodyAsync();
+    return Results.Content(DashboardRenderer.RenderDocs(body, IsDark(http)), "text/html");
+});
+
+app.MapGet("/docs/report.md", async (NetworkReport report) =>
+{
+    var md = await report.GenerateMarkdownAsync();
+    return Results.Text(md, "text/markdown");
 });
 
 app.MapGet("/healthz", () => Results.Text("ok"));

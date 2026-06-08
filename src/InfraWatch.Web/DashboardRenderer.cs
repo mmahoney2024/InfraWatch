@@ -27,6 +27,17 @@ public static class DashboardRenderer
         return sb.ToString();
     }
 
+    /// <summary>The generated "State of the Network" documentation (HTML body from Markdown).</summary>
+    public static string RenderDocs(string htmlBody, bool dark = false)
+    {
+        var sb = new StringBuilder();
+        OpenPage(sb, dark, breadcrumb: "<a href=\"/\">Overview</a> › Documentation");
+        sb.Append("<div style=\"margin:6px 0 2px\"><a class=\"btn\" href=\"/docs/report.md\" download>⬇ Download Markdown</a></div>");
+        sb.Append($"<div class=\"doc\">{htmlBody}</div>");
+        ClosePage(sb);
+        return sb.ToString();
+    }
+
     /// <summary>Drill 1: one pillar's targets (servers/endpoints), each rolled up and
     /// linking to its own detail page. Inventory (documentation) follows.</summary>
     public static string RenderPillar(
@@ -194,8 +205,14 @@ public static class DashboardRenderer
             *{box-sizing:border-box}body{margin:0;font:14px/1.45 -apple-system,Segoe UI,Roboto,Arial,sans-serif;background:var(--bg);color:var(--ink)}
             header{background:var(--header);color:#fff;padding:14px 22px;display:flex;align-items:center;gap:14px}
             header h1{font-size:18px;margin:0;letter-spacing:.3px}header h1 a{color:#fff;text-decoration:none}header .sub{color:#9fb0c3;font-size:12px}
-            .themeBtn{margin-left:auto;background:transparent;border:1px solid #ffffff55;color:#fff;border-radius:6px;padding:4px 10px;font-size:15px;line-height:1;cursor:pointer}
+            .navlink{margin-left:auto;color:#cdd9e5;text-decoration:none;font-size:13px;border:1px solid #ffffff33;border-radius:6px;padding:5px 11px}
+            .navlink:hover{background:#ffffff1a}
+            .themeBtn{margin-left:8px;background:transparent;border:1px solid #ffffff55;color:#fff;border-radius:6px;padding:4px 10px;font-size:15px;line-height:1;cursor:pointer}
             .themeBtn:hover{background:#ffffff22}
+            .doc h1{font-size:22px;margin:16px 0 6px;text-transform:none;letter-spacing:0;color:var(--ink)}
+            .doc h2{font-size:18px;margin:24px 0 8px;text-transform:none;letter-spacing:0;color:var(--ink);border-bottom:1px solid var(--line);padding-bottom:4px}
+            .doc h3{font-size:13px;margin:14px 0 6px;letter-spacing:.3px;color:var(--muted2)}
+            .doc table{margin:8px 0 18px}.doc code{background:var(--line);padding:1px 5px;border-radius:3px}.doc em{color:var(--muted)}
             .btn{background:#2b6cb0;color:#fff;border:none;border-radius:6px;padding:7px 13px;font-size:13px;cursor:pointer;margin:0 8px 0 0}
             .btn:hover{background:#255a96}.btn.intrusive{background:#b9770a}.btn.intrusive:hover{background:#9c6309}
             main{max-width:1100px;margin:0 auto;padding:20px}
@@ -229,6 +246,7 @@ public static class DashboardRenderer
 
         var now = DateTimeOffset.Now.ToString("yyyy-MM-dd HH:mm:ss");
         sb.Append($"<header><h1><a href=\"/\">InfraWatch</a></h1><span class=\"sub\">one pane of glass · generated {now} · auto-refresh 30s</span>");
+        sb.Append("<a class=\"navlink\" href=\"/docs\">📄 Docs</a>");
         sb.Append($"<button id=\"themeBtn\" class=\"themeBtn\" onclick=\"iwToggleTheme()\" title=\"Toggle dark mode\">{themeIcon}</button></header>");
         sb.Append("<script>function iwToggleTheme(){var d=document.documentElement.getAttribute('data-theme')!=='dark';document.documentElement.setAttribute('data-theme',d?'dark':'light');document.cookie='iw-theme='+(d?'dark':'light')+';path=/;max-age=31536000;samesite=lax';document.getElementById('themeBtn').textContent=d?'☀':'🌙';}</script>");
         sb.Append("<main>");

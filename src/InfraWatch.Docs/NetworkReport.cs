@@ -1,0 +1,138 @@
+using System.Text;
+using InfraWatch.Core;
+using Markdig;
+
+namespace InfraWatch.Docs;
+
+/// <summary>
+/// Generates the "State of the Network" document from the store — a rendering of measured
+/// reality (inventory + current health), not a hand-maintained doc. Markdown is the source
+/// of truth; HTML is produced from it for the dashboard view.
+/// </summary>
+public sealed class NetworkReport
+{
+    private static readonly string[] PillarOrder =
+        ["HostNet", "Dns", "Dhcp", "Smb", "ActiveDirectory", "HyperV", "Veeam", "Imaging"];
+
+    private static readonly MarkdownPipeline Pipeline =
+        new MarkdownPipelineBuilder().UseAdvancedExtensions().Build();
+
+    private readonly IStore _store;
+
+    public NetworkReport(IStore store) => _store = store;
+
+    public async Task<string> GenerateHtmlBodyAsync(CancellationToken ct = default) =>
+        Markdown.ToHtml(await GenerateMarkdownAsync(ct), Pipeline);
+
+    public async Task<string> GenerateMarkdownAsync(CancellationToken ct = default)
+    {
+        var health = await _store.GetLatestHealthAsync(ct);
+        var pillars = OrderPillars(health.Select(h => h.Pillar).Where(p => p != "Jira"));
+
+        var sb = new StringBuilder();
+        sb.AppendLine("# InfraWatch — State of the Network").AppendLine();
+        sb.AppendLine($"*Generated {DateTimeOffset.Now:yyyy-MM-dd HH:mm} — a rendering of measured reality, not hand-maintained.*")
+          .AppendLine();
+
+        sb.AppendLine("## Health summary").AppendLine();
+        sb.AppendLine("| Pillar | Checks | OK | Warning | Critical |");
+        sb.AppendLine("|---|--:|--:|--:|--:|");
+        foreach (var p in pillars)
+        {
+            var recs = health.Where(h => h.Pillar == p).ToList();
+            sb.AppendLine($"| {PillarName(p)} | {recs.Count} | {recs.Count(h => h.Status == HealthStatus.Healthy)} " +
+                $"| {recs.Count(h => h.Status == HealthStatus.Warning)} " +
+                $"| {recs.Count(h => h.Status is HealthStatus.Critical or HealthStatus.Unknown)} |");
+        }
+        sb.AppendLine();
+
+        foreach (var p in pillars)
+        {
+            sb.AppendLine($"## {PillarName(p)}").AppendLine();
+
+            var problems = health.Where(h => h.Pillar == p && h.Status is HealthStatus.Warning or HealthStatus.Critical)
+                .OrderByDescending(h => h.Status).ToList();
+            if (problems.Count > 0)
+            {
+                sb.AppendLine("**Attention:**").AppendLine();
+                foreach (var h in problems)
+                    sb.AppendLine($"- {(h.Status == HealthStatus.Critical ? "🔴" : "🟡")} `{Esc(h.Target)}` — {Esc(h.Check)}: {Esc(h.Summary ?? "")}");
+                sb.AppendLine();
+            }
+
+            var inventory = await _store.GetLatestInventoryAsync(p, ct);
+            if (inventory.Count == 0)
+            {
+                sb.AppendLine("*No inventory recorded yet.*").AppendLine();
+                continue;
+            }
+
+            foreach (var group in inventory.GroupBy(i => i.Kind).OrderBy(g => g.Key))
+            {
+                var rows = group.OrderBy(i => i.Name).ToList();
+                var attrKeys = rows.SelectMany(r => r.Attributes?.Keys ?? []).Distinct().ToList();
+
+                sb.AppendLine($"### {KindName(group.Key)} ({rows.Count})").AppendLine();
+                sb.Append("| Name |");
+                foreach (var k in attrKeys) sb.Append($" {Esc(k)} |");
+                sb.AppendLine();
+                sb.Append("|---|");
+                foreach (var _ in attrKeys) sb.Append("---|");
+                sb.AppendLine();
+                foreach (var rec in rows)
+                {
+                    sb.Append($"| {Esc(rec.Name)} |");
+                    foreach (var k in attrKeys)
+                        sb.Append($" {Esc(rec.Attributes is not null && rec.Attributes.TryGetValue(k, out var v) ? v : "")} |");
+                    sb.AppendLine();
+                }
+                sb.AppendLine();
+            }
+        }
+
+        return sb.ToString();
+    }
+
+    private static IEnumerable<string> OrderPillars(IEnumerable<string> present)
+    {
+        var set = present.ToHashSet();
+        foreach (var p in PillarOrder)
+            if (set.Remove(p)) yield return p;
+        foreach (var p in set.OrderBy(x => x)) yield return p;
+    }
+
+    private static string PillarName(string p) => p switch
+    {
+        "HostNet" => "Host / Net",
+        "Dns" => "DNS",
+        "Dhcp" => "DHCP",
+        "Smb" => "SMB / File",
+        "ActiveDirectory" => "Active Directory",
+        "HyperV" => "Hyper-V",
+        "Veeam" => "Veeam",
+        "Imaging" => "Imaging (WDS/MDT)",
+        _ => p,
+    };
+
+    private static string KindName(string kind) => kind switch
+    {
+        "dc" => "Domain Controllers",
+        "fsmo" => "FSMO Roles",
+        "site" => "AD Sites",
+        "vm" => "Virtual Machines",
+        "host" => "Hosts",
+        "share" => "Shares",
+        "dns-record" => "DNS Records",
+        "scope" => "DHCP Scopes",
+        "job" => "Backup Jobs",
+        "repository" => "Backup Repositories",
+        "backup" => "Backups (per machine)",
+        "cert" => "TLS Certificates",
+        "boot-file" => "Boot Files",
+        "file" => "Files",
+        _ => kind,
+    };
+
+    private static string Esc(string s) =>
+        string.IsNullOrEmpty(s) ? "" : s.Replace("|", "\\|").Replace("\r", " ").Replace("\n", " ");
+}

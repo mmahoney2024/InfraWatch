@@ -1,14 +1,18 @@
 # InfraWatch.Docs
 
-The documentation renderer. Depends on Core + Storage.
+The documentation renderer. **Implemented.** Turns stored inventory + health into the
+self-maintaining documentation from `CONCEPT.md` §3 — *a rendering of measured reality, not
+hand-typed*.
 
-Turns stored `InventoryRecord`s + history into the three documentation flavors from
-`CONCEPT.md` §3:
+- **`NetworkReport`** — generates the **"State of the Network"** document (Markdown, and HTML
+  via Markdig) from `IStore`: a health summary plus per-pillar inventory tables (DCs, VMs,
+  shares, DNS records, DHCP scopes, TLS certs, Veeam jobs/backups/repos, …) with an
+  "Attention" callout for anything Warning/Critical.
 
-1. **Inventory** — a living map of what exists, measured not typed.
-2. **Change history** — the drift log, rendered as a timeline.
-3. **Reports** — scheduled/on-demand Markdown / PDF ("state of the network", backup
-   posture, incident timelines). Optional push to an internal wiki.
+Served by the web app:
+- **`/docs`** — the report rendered in the dashboard (linked from the header).
+- **`/docs/report.md`** — the raw Markdown (downloadable / wiki-ready).
 
-Docs are a *rendering of measured reality* — this project never invents facts, it only
-renders what Storage already holds.
+## Next in this project
+- **Change / drift log** — what changed and when (store records inventory diffs).
+- **Scheduled export** — write the report to a file / push to a wiki on a schedule.
