@@ -132,8 +132,18 @@ public sealed class SmbCollector : ICollector
             var count = 0;
             foreach (ManagementBaseObject share in searcher.Get())
             {
-                count++;
                 var name = share["Name"]?.ToString() ?? "";
+                var path = share["Path"]?.ToString() ?? "";
+
+                // Skip Volume Shadow Copy snapshot shares: these are transient (VSS rotates
+                // snapshots constantly), so recording them floods the change/drift log with
+                // phantom add/remove churn. They surface as names containing '@' and/or paths
+                // under the GLOBALROOT shadow-copy device namespace.
+                if (name.Contains('@') || path.Contains("GLOBALROOT", StringComparison.OrdinalIgnoreCase)
+                                       || path.Contains("HarddiskVolumeShadowCopy", StringComparison.OrdinalIgnoreCase))
+                    continue;
+
+                count++;
                 inventory.Add(new InventoryRecord
                 {
                     Pillar = Pillar, Kind = "share", Key = $@"\\{host}\{name}", Name = $@"\\{host}\{name}",
@@ -141,7 +151,7 @@ public sealed class SmbCollector : ICollector
                     {
                         ["host"] = host,
                         ["share"] = name,
-                        ["path"] = share["Path"]?.ToString() ?? "",
+                        ["path"] = path,
                         ["type"] = ShareType(share["Type"]),
                         ["description"] = share["Description"]?.ToString() ?? "",
                     },

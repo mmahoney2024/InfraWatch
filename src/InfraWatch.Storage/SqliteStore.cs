@@ -16,6 +16,9 @@ public sealed class SqliteStore : IStore
     private readonly string _connectionString;
     private readonly ILogger<SqliteStore> _logger;
 
+    /// <summary>Pillars whose inventory churns by design and must not feed the drift/change log.</summary>
+    private static readonly HashSet<string> NonDriftPillars = new(StringComparer.OrdinalIgnoreCase) { "Jira" };
+
     static SqliteStore()
     {
         // Map columns like check_name -> CheckName without per-query aliases.
@@ -171,6 +174,11 @@ public sealed class SqliteStore : IStore
         var changes = new List<ChangeRecord>();
         foreach (var grp in rows.GroupBy(r => r.Pillar))
         {
+            // Integration pillars (e.g. Jira) inventory live tickets that legitimately open and
+            // close every cycle — that is workflow, not infrastructure drift, so don't log it.
+            if (NonDriftPillars.Contains(grp.Key))
+                continue;
+
             var existing = (await conn.QueryAsync<KeyRow>(
                 """
                 SELECT kind, key, name FROM inventory
