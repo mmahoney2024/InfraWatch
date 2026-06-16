@@ -17,6 +17,11 @@ using InfraWatch.Storage;
 using InfraWatch.Web;
 using Microsoft.Extensions.Options;
 
+// A Windows service starts with its working directory set to C:\Windows\System32. Pin it to
+// the install folder so config files, the SQLite store, and the docs export all resolve
+// relative to the app (not System32). Harmless for interactive/`dotnet run` use.
+Directory.SetCurrentDirectory(AppContext.BaseDirectory);
+
 var builder = WebApplication.CreateBuilder(args);
 
 // Run correctly under the Windows Service Control Manager when installed as a service.
