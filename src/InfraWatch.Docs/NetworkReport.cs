@@ -34,7 +34,11 @@ public sealed class NetworkReport
     public async Task<string> GenerateMarkdownAsync(CancellationToken ct = default)
     {
         var allHealth = await _store.GetLatestHealthAsync(ct);
-        var health = allHealth.Where(h => h.Pillar != "Jira").ToList();
+        // Only report checks seen recently, so a removed/renamed check (or a collector that
+        // stopped running) ages out instead of lingering as a stale latest-row. Matches the
+        // dashboard's freshness window; comfortably covers the longest collector interval.
+        var cutoff = DateTimeOffset.UtcNow.AddMinutes(-20);
+        var health = allHealth.Where(h => h.Pillar != "Jira" && h.Timestamp >= cutoff).ToList();
         var pillars = OrderPillars(health.Select(h => h.Pillar)).ToList();
 
         var sb = new StringBuilder();
@@ -152,7 +156,7 @@ public sealed class NetworkReport
         "ActiveDirectory" => "Active Directory",
         "HyperV" => "Hyper-V",
         "Veeam" => "Veeam",
-        "Imaging" => "Imaging (WDS/MDT)",
+        "Imaging" => "Imaging (SmartDeploy)",
         _ => p,
     };
 
@@ -170,7 +174,8 @@ public sealed class NetworkReport
         "repository" => "Backup Repositories",
         "backup" => "Backups (per machine)",
         "cert" => "TLS Certificates",
-        "boot-file" => "Boot Files",
+        "image" => "OS Images",
+        "boot-file" => "Boot / Media Files",
         "file" => "Files",
         _ => kind,
     };

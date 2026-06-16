@@ -6,12 +6,12 @@ using Microsoft.Extensions.Options;
 namespace InfraWatch.Collectors.Imaging;
 
 /// <summary>
-/// WDS / MDT imaging health. Three layers, all read-only (the TFTP download is a passive
-/// read like a PXE client):
-///  • TFTP — download the PXE boot file(s) and confirm bytes/size/latency
-///  • Deployment share — key files (boot WIM, Bootstrap.ini …) exist, are readable, fresh
-///  • WDS service — the service is running
-/// Uses the service account's own Windows credentials.
+/// Imaging-server health (SmartDeploy + legacy WDS/MDT). All read-only:
+///  • Services — the imaging services are running (SmartDeploy SDApiService/SDClientService, WDSServer)
+///  • Image stores — reachable, free disk space, and the OS images they hold (count / size / age)
+///  • Shares / files — boot media and key files exist and are readable
+///  • TFTP (optional) — download a PXE boot file and confirm bytes/latency
+/// Imaging is back-office, so issues are Warning (not a production outage).
 /// </summary>
 public sealed class ImagingCollector : ICollector
 {
@@ -39,17 +39,47 @@ public sealed class ImagingCollector : ICollector
         var server = string.IsNullOrWhiteSpace(_options.Server) ? "imaging" : _options.Server;
         var haveServer = !string.IsNullOrWhiteSpace(_options.Server);
 
-        if (_options.CheckService && haveServer)
-            health.Add(ServiceCheck(server));
+        if (haveServer)
+            foreach (var svc in _options.Services)
+                if (!string.IsNullOrWhiteSpace(svc))
+                    health.Add(ServiceCheck(server, svc));
+
+        foreach (var store in _options.ImageShares)
+        {
+            ct.ThrowIfCancellationRequested();
+            if (!string.IsNullOrWhiteSpace(store))
+                ImageStoreCheck(server, store, health, inventory, ct);
+        }
+
+        foreach (var share in _options.Shares)
+        {
+            ct.ThrowIfCancellationRequested();
+            if (string.IsNullOrWhiteSpace(share)) continue;
+            try
+            {
+                _ = Directory.EnumerateFileSystemEntries(share).Take(1).ToList();
+                health.Add(H(server, $"{Label(share)}: share", HealthStatus.Healthy, null, null, $"{share} accessible"));
+            }
+            catch (Exception ex)
+            {
+                health.Add(H(server, $"{Label(share)}: share", HealthStatus.Warning, null, null, $"inaccessible: {ex.Message}"));
+            }
+        }
+
+        foreach (var file in _options.Files)
+        {
+            ct.ThrowIfCancellationRequested();
+            if (!string.IsNullOrWhiteSpace(file))
+                health.Add(FileCheck(server, file, inventory));
+        }
 
         foreach (var file in _options.TftpFiles)
         {
             ct.ThrowIfCancellationRequested();
-            if (string.IsNullOrWhiteSpace(file) || !haveServer)
-                continue;
+            if (string.IsNullOrWhiteSpace(file) || !haveServer) continue;
 
             var r = TftpClient.Read(_options.Server, file, _options.TftpMaxBytes, _options.TftpTimeoutMs);
-            health.Add(H(server, $"tftp {file}", r.Ok ? HealthStatus.Healthy : HealthStatus.Critical,
+            health.Add(H(server, $"tftp {file}", r.Ok ? HealthStatus.Healthy : HealthStatus.Warning,
                 r.Bytes, "bytes", r.Ok ? $"{r.Message} ({r.LatencyMs} ms)" : r.Message));
             if (r.Ok)
                 inventory.Add(new InventoryRecord
@@ -62,54 +92,99 @@ public sealed class ImagingCollector : ICollector
                 });
         }
 
-        if (!string.IsNullOrWhiteSpace(_options.DeploymentShare))
-        {
-            try
-            {
-                _ = Directory.EnumerateFileSystemEntries(_options.DeploymentShare).Take(1).ToList();
-                health.Add(H(server, "share", HealthStatus.Healthy, null, null, $"{_options.DeploymentShare} accessible"));
-            }
-            catch (Exception ex)
-            {
-                health.Add(H(server, "share", HealthStatus.Critical, null, null, $"share inaccessible: {ex.Message}"));
-            }
-
-            foreach (var rel in _options.ShareFiles)
-            {
-                ct.ThrowIfCancellationRequested();
-                if (!string.IsNullOrWhiteSpace(rel))
-                    health.Add(FileCheck(server, rel, inventory));
-            }
-        }
-
         return new CollectionResult(health, inventory);
     }
 
-    private HealthRecord ServiceCheck(string server)
+    private HealthRecord ServiceCheck(string server, string svc)
     {
         try
         {
-            using var sc = new ServiceController(_options.ServiceName, _options.Server);
+            using var sc = new ServiceController(svc, _options.Server);
             var status = sc.Status;
-            return H(server, "wds-service",
-                status == ServiceControllerStatus.Running ? HealthStatus.Healthy : HealthStatus.Critical,
-                null, null, $"{_options.ServiceName}: {status}");
+            return H(server, $"service {svc}",
+                status == ServiceControllerStatus.Running ? HealthStatus.Healthy : HealthStatus.Warning,
+                null, null, $"{svc}: {status}");
         }
         catch (Exception ex)
         {
-            _logger.LogWarning(ex, "Could not query service {Service} on {Server}", _options.ServiceName, _options.Server);
-            return H(server, "wds-service", HealthStatus.Unknown, null, null, $"could not query service: {ex.Message}");
+            _logger.LogWarning(ex, "Could not query service {Service} on {Server}", svc, _options.Server);
+            return H(server, $"service {svc}", HealthStatus.Unknown, null, null, $"could not query service: {ex.Message}");
         }
     }
 
-    private HealthRecord FileCheck(string server, string rel, List<InventoryRecord> inventory)
+    private void ImageStoreCheck(string server, string store, List<HealthRecord> health, List<InventoryRecord> inventory, CancellationToken ct)
     {
-        var full = Path.Combine(_options.DeploymentShare, rel);
+        var label = Label(store);
+
         try
         {
-            var fi = new FileInfo(full);
+            _ = Directory.EnumerateFileSystemEntries(store).Take(1).ToList();
+            health.Add(H(server, $"{label}: share", HealthStatus.Healthy, null, null, $"{store} accessible"));
+        }
+        catch (Exception ex)
+        {
+            health.Add(H(server, $"{label}: share", HealthStatus.Warning, null, null, $"inaccessible: {ex.Message}"));
+            return; // can't inventory what we can't reach
+        }
+
+        if (DiskFree.TryGet(store, out var freeGb, out var totalGb, out var freePct))
+        {
+            var low = _options.DiskWarnPct > 0 && freePct < _options.DiskWarnPct;
+            health.Add(H(server, $"{label}: free space", low ? HealthStatus.Warning : HealthStatus.Healthy,
+                Math.Round(freePct, 1), "%free",
+                $"{Math.Round(freeGb)} GB free of {Math.Round(totalGb)} GB ({Math.Round(freePct, 1)}%)"));
+        }
+
+        var patterns = _options.ImagePatterns.Count > 0 ? _options.ImagePatterns : ["*.wim"];
+        var files = new List<FileInfo>();
+        foreach (var pat in patterns)
+        {
+            try { files.AddRange(new DirectoryInfo(store).EnumerateFiles(pat, SearchOption.AllDirectories)); }
+            catch (Exception ex) { _logger.LogWarning(ex, "Image enumeration failed in {Store} for {Pattern}", store, pat); }
+        }
+        files = files.GroupBy(f => f.FullName, StringComparer.OrdinalIgnoreCase).Select(g => g.First()).ToList();
+
+        var newest = DateTime.MinValue;
+        foreach (var fi in files)
+        {
+            ct.ThrowIfCancellationRequested();
+            var sizeGb = Math.Round(fi.Length / 1024.0 / 1024.0 / 1024.0, 2);
+            var modified = fi.LastWriteTime;
+            if (modified > newest) newest = modified;
+            inventory.Add(new InventoryRecord
+            {
+                Pillar = Pillar, Kind = "image", Key = fi.FullName, Name = fi.Name,
+                Attributes = new Dictionary<string, string>
+                {
+                    ["sizeGB"] = sizeGb.ToString(),
+                    ["modified"] = modified.ToString("yyyy-MM-dd"),
+                    ["ageDays"] = ((int)(DateTime.Now - modified).TotalDays).ToString(),
+                    ["store"] = label,
+                },
+            });
+        }
+
+        if (files.Count == 0)
+        {
+            health.Add(H(server, $"{label}: images", HealthStatus.Warning, 0, "count", "no images found"));
+        }
+        else
+        {
+            var newestAge = (int)(DateTime.Now - newest).TotalDays;
+            var stale = _options.StaleWarnDays > 0 && newestAge > _options.StaleWarnDays;
+            health.Add(H(server, $"{label}: images", stale ? HealthStatus.Warning : HealthStatus.Healthy, files.Count, "count",
+                $"{files.Count} image(s), newest {newestAge}d old" + (stale ? $" (stale > {_options.StaleWarnDays}d)" : "")));
+        }
+    }
+
+    private HealthRecord FileCheck(string server, string unc, List<InventoryRecord> inventory)
+    {
+        var name = Path.GetFileName(unc.TrimEnd('\\'));
+        try
+        {
+            var fi = new FileInfo(unc);
             if (!fi.Exists)
-                return H(server, $"file {rel}", HealthStatus.Critical, null, null, "missing");
+                return H(server, $"file {name}", HealthStatus.Warning, null, null, $"missing: {unc}");
 
             using (var fs = fi.OpenRead())
             {
@@ -119,31 +194,39 @@ public sealed class ImagingCollector : ICollector
 
             var sizeMb = Math.Round(fi.Length / 1024.0 / 1024.0, 1);
             var modified = fi.LastWriteTime;
-            var ageDays = (DateTime.Now - modified).TotalDays;
-            var stale = _options.StaleDays > 0 && ageDays > _options.StaleDays;
+            var ageDays = (int)(DateTime.Now - modified).TotalDays;
+            var stale = _options.StaleWarnDays > 0 && ageDays > _options.StaleWarnDays;
 
             inventory.Add(new InventoryRecord
             {
-                Pillar = Pillar, Kind = "file", Key = rel, Name = rel,
+                Pillar = Pillar, Kind = "boot-file", Key = unc, Name = name,
                 Attributes = new Dictionary<string, string>
                 {
                     ["sizeMB"] = sizeMb.ToString(),
-                    ["modified"] = modified.ToString("u"),
-                    ["ageDays"] = ((int)ageDays).ToString(),
+                    ["modified"] = modified.ToString("yyyy-MM-dd"),
+                    ["ageDays"] = ageDays.ToString(),
                 },
             });
 
-            return H(server, $"file {rel}", stale ? HealthStatus.Warning : HealthStatus.Healthy, sizeMb, "MB",
-                $"{sizeMb} MB, modified {modified:yyyy-MM-dd}" + (stale ? $" (stale > {_options.StaleDays}d)" : ""));
+            return H(server, $"file {name}", stale ? HealthStatus.Warning : HealthStatus.Healthy, sizeMb, "MB",
+                $"{sizeMb} MB, modified {modified:yyyy-MM-dd}" + (stale ? $" (stale > {_options.StaleWarnDays}d)" : ""));
         }
         catch (UnauthorizedAccessException)
         {
-            return H(server, $"file {rel}", HealthStatus.Critical, null, null, "access denied");
+            return H(server, $"file {name}", HealthStatus.Warning, null, null, "access denied");
         }
         catch (Exception ex)
         {
-            return H(server, $"file {rel}", HealthStatus.Critical, null, null, ex.Message);
+            return H(server, $"file {name}", HealthStatus.Warning, null, null, ex.Message);
         }
+    }
+
+    /// <summary>Short label for a UNC path — its last segment (the share/folder name).</summary>
+    private static string Label(string unc)
+    {
+        var trimmed = unc.TrimEnd('\\');
+        var idx = trimmed.LastIndexOf('\\');
+        return idx >= 0 && idx < trimmed.Length - 1 ? trimmed[(idx + 1)..] : trimmed;
     }
 
     private static HealthRecord H(string target, string check, HealthStatus status, double? value, string? unit, string summary) => new()
