@@ -16,6 +16,9 @@ public sealed class AssetCatalogOptions
     /// FC WWPNs, storage WWNs, archived VMs, networking).</summary>
     public string InventoryPageUrl { get; set; } = "";
 
+    /// <summary>Link to the published "State of the Network" Confluence page (this report's copy).</summary>
+    public string StateOfNetworkUrl { get; set; } = "";
+
     /// <summary>Physical server hosts.</summary>
     public List<AssetRecord> Servers { get; set; } = new();
 

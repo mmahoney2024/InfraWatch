@@ -13,6 +13,12 @@ namespace InfraWatch.Web;
 /// </summary>
 public static class DashboardRenderer
 {
+    /// <summary>External Confluence links shown in the dashboard, set once at startup from
+    /// the "Assets" config. Null/empty links are simply not rendered.</summary>
+    public static string? ConfluenceHubUrl { get; set; }
+    public static string? ConfluenceReportUrl { get; set; }
+    public static string? ConfluenceInventoryUrl { get; set; }
+
     // ---- Views -------------------------------------------------------------
 
     /// <summary>Top level: the wall of status tiles + the Jira widgets.</summary>
@@ -34,6 +40,20 @@ public static class DashboardRenderer
         OpenPage(sb, dark, breadcrumb: "<a href=\"/\">Overview</a> › Documentation");
         sb.Append("<div style=\"margin:6px 0 2px\"><a class=\"btn\" href=\"/docs/report.md\" download>⬇ Download Markdown</a> ")
           .Append("<a class=\"btn\" href=\"/docs/changes\">Change log</a></div>");
+
+        if (!string.IsNullOrWhiteSpace(ConfluenceReportUrl) || !string.IsNullOrWhiteSpace(ConfluenceHubUrl)
+            || !string.IsNullOrWhiteSpace(ConfluenceInventoryUrl))
+        {
+            sb.Append("<div style=\"margin:8px 0 2px\"><span class=\"muted\" style=\"margin-right:6px\">Confluence:</span>");
+            if (!string.IsNullOrWhiteSpace(ConfluenceReportUrl))
+                sb.Append($"<a class=\"btn\" href=\"{Enc(ConfluenceReportUrl)}\" target=\"_blank\" rel=\"noopener\">📄 This report in Confluence ↗</a> ");
+            if (!string.IsNullOrWhiteSpace(ConfluenceHubUrl))
+                sb.Append($"<a class=\"btn\" href=\"{Enc(ConfluenceHubUrl)}\" target=\"_blank\" rel=\"noopener\">📚 Infrastructure Documentation ↗</a> ");
+            if (!string.IsNullOrWhiteSpace(ConfluenceInventoryUrl))
+                sb.Append($"<a class=\"btn\" href=\"{Enc(ConfluenceInventoryUrl)}\" target=\"_blank\" rel=\"noopener\">🗄️ Servers, VMs &amp; Rack Inventory ↗</a>");
+            sb.Append("</div>");
+        }
+
         sb.Append($"<div class=\"doc\">{htmlBody}</div>");
         ClosePage(sb);
         return sb.ToString();
@@ -245,9 +265,10 @@ public static class DashboardRenderer
             *{box-sizing:border-box}body{margin:0;font:14px/1.45 -apple-system,Segoe UI,Roboto,Arial,sans-serif;background:var(--bg);color:var(--ink)}
             header{background:var(--header);color:#fff;padding:14px 22px;display:flex;align-items:center;gap:14px}
             header h1{font-size:18px;margin:0;letter-spacing:.3px}header h1 a{color:#fff;text-decoration:none}header .sub{color:#9fb0c3;font-size:12px}
-            .navlink{margin-left:auto;color:#cdd9e5;text-decoration:none;font-size:13px;border:1px solid #ffffff33;border-radius:6px;padding:5px 11px}
+            .nav{margin-left:auto;display:flex;align-items:center;gap:8px}
+            .navlink{color:#cdd9e5;text-decoration:none;font-size:13px;border:1px solid #ffffff33;border-radius:6px;padding:5px 11px;white-space:nowrap}
             .navlink:hover{background:#ffffff1a}
-            .themeBtn{margin-left:8px;background:transparent;border:1px solid #ffffff55;color:#fff;border-radius:6px;padding:4px 10px;font-size:15px;line-height:1;cursor:pointer}
+            .themeBtn{background:transparent;border:1px solid #ffffff55;color:#fff;border-radius:6px;padding:4px 10px;font-size:15px;line-height:1;cursor:pointer}
             .themeBtn:hover{background:#ffffff22}
             .doc h1{font-size:22px;margin:16px 0 6px;text-transform:none;letter-spacing:0;color:var(--ink)}
             .doc h2{font-size:18px;margin:24px 0 8px;text-transform:none;letter-spacing:0;color:var(--ink);border-bottom:1px solid var(--line);padding-bottom:4px}
@@ -286,8 +307,12 @@ public static class DashboardRenderer
 
         var now = DateTimeOffset.Now.ToString("yyyy-MM-dd HH:mm:ss");
         sb.Append($"<header><h1><a href=\"/\">InfraWatch</a></h1><span class=\"sub\">one pane of glass · generated {now} · auto-refresh 30s</span>");
+        sb.Append("<span class=\"nav\">");
         sb.Append("<a class=\"navlink\" href=\"/docs\">📄 Docs</a>");
-        sb.Append($"<button id=\"themeBtn\" class=\"themeBtn\" onclick=\"iwToggleTheme()\" title=\"Toggle dark mode\">{themeIcon}</button></header>");
+        if (!string.IsNullOrWhiteSpace(ConfluenceHubUrl))
+            sb.Append($"<a class=\"navlink\" href=\"{Enc(ConfluenceHubUrl)}\" target=\"_blank\" rel=\"noopener\">📚 Confluence ↗</a>");
+        sb.Append($"<button id=\"themeBtn\" class=\"themeBtn\" onclick=\"iwToggleTheme()\" title=\"Toggle dark mode\">{themeIcon}</button>");
+        sb.Append("</span></header>");
         sb.Append("<script>function iwToggleTheme(){var d=document.documentElement.getAttribute('data-theme')!=='dark';document.documentElement.setAttribute('data-theme',d?'dark':'light');document.cookie='iw-theme='+(d?'dark':'light')+';path=/;max-age=31536000;samesite=lax';document.getElementById('themeBtn').textContent=d?'☀':'🌙';}</script>");
         sb.Append("<main>");
         if (!string.IsNullOrEmpty(breadcrumb))

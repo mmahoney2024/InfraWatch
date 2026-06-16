@@ -13,6 +13,7 @@ using InfraWatch.Engine;
 using InfraWatch.Integrations.Jira;
 using InfraWatch.Storage;
 using InfraWatch.Web;
+using Microsoft.Extensions.Options;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -49,6 +50,14 @@ builder.Services.AddVeeamCollector(builder.Configuration);
 builder.Services.AddJiraIntegration(builder.Configuration);
 
 var app = builder.Build();
+
+// Surface the Confluence documentation links in the dashboard (set once from the "Assets" config).
+{
+    var assets = app.Services.GetRequiredService<IOptions<AssetCatalogOptions>>().Value;
+    DashboardRenderer.ConfluenceHubUrl = assets.InfrastructureDocUrl;
+    DashboardRenderer.ConfluenceReportUrl = assets.StateOfNetworkUrl;
+    DashboardRenderer.ConfluenceInventoryUrl = assets.InventoryPageUrl;
+}
 
 static bool IsDark(HttpContext http) =>
     http.Request.Cookies.TryGetValue("iw-theme", out var t)
