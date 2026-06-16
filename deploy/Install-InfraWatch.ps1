@@ -45,6 +45,32 @@ function Test-DomainCredential {
     }
 }
 
+function Grant-LogonAsServiceRight {
+    # Adds SeServiceLogonRight ("Log on as a service") to the account SID via secedit.
+    # New-Service/SCM require this right and won't grant it themselves (error 1057 otherwise).
+    param([string]$Sid)
+    $inf = Join-Path $env:TEMP "iw_secpol.inf"
+    $sdb = Join-Path $env:TEMP "iw_secpol.sdb"
+    secedit /export /cfg $inf /areas USER_RIGHTS | Out-Null
+    $lines = Get-Content $inf
+    $found = $false
+    $out = foreach ($l in $lines) {
+        if ($l -match '^\s*SeServiceLogonRight\s*=') {
+            $found = $true
+            if ($l -match [regex]::Escape($Sid)) { $l } else { ($l.TrimEnd()) + ",*$Sid" }
+        } else { $l }
+    }
+    if (-not $found) {
+        $out = foreach ($l in $out) {
+            $l
+            if ($l -match '^\[Privilege Rights\]') { "SeServiceLogonRight = *$Sid" }
+        }
+    }
+    Set-Content -Path $inf -Value $out -Encoding Unicode
+    secedit /configure /db $sdb /cfg $inf /areas USER_RIGHTS | Out-Null
+    Remove-Item $inf, $sdb -Force -ErrorAction SilentlyContinue
+}
+
 # --- Prompt for + validate the service account; re-prompt immediately on a bad password ---
 while ($true) {
     if (-not $ServiceAccount) {
@@ -65,6 +91,22 @@ while ($true) {
         $ServiceAccount = $null
     }
 }
+
+# --- Normalize the account to canonical DOMAIN\user and grant 'Log on as a service' ---
+try {
+    $nt  = New-Object System.Security.Principal.NTAccount($ServiceAccount.UserName)
+    $sid = $nt.Translate([System.Security.Principal.SecurityIdentifier])
+    $canonical = $sid.Translate([System.Security.Principal.NTAccount]).Value
+    if ($canonical -ne $ServiceAccount.UserName) {
+        Write-Host "Using account name '$canonical'."
+        $ServiceAccount = New-Object System.Management.Automation.PSCredential($canonical, $ServiceAccount.Password)
+    }
+} catch {
+    throw "Could not resolve the account '$($ServiceAccount.UserName)': $($_.Exception.Message)"
+}
+
+Write-Host "Granting 'Log on as a service' to $($ServiceAccount.UserName)..."
+Grant-LogonAsServiceRight -Sid $sid.Value
 
 # --- Remove any prior install ---
 $existing = Get-Service -Name $ServiceName -ErrorAction SilentlyContinue
@@ -88,9 +130,16 @@ foreach ($sub in @('data', 'docs')) {
 
 # --- Create the service ---
 Write-Host "Creating service '$ServiceName' -> $exe"
-New-Service -Name $ServiceName -BinaryPathName "`"$exe`"" -DisplayName $DisplayName `
-    -Description "InfraWatch - infrastructure monitoring + self-documenting dashboard." `
-    -StartupType Automatic -Credential $ServiceAccount | Out-Null
+try {
+    New-Service -Name $ServiceName -BinaryPathName "`"$exe`"" -DisplayName $DisplayName `
+        -Description "InfraWatch - infrastructure monitoring + self-documenting dashboard." `
+        -StartupType Automatic -Credential $ServiceAccount | Out-Null
+} catch {
+    throw "Failed to create the service: $($_.Exception.Message)`n" +
+          "If this says the account/password is invalid even though the password was verified, " +
+          "the account likely still lacks 'Log on as a service'. Confirm via secpol.msc > Local " +
+          "Policies > User Rights Assignment > 'Log on as a service', then re-run."
+}
 
 # Auto-restart on crash (reset count daily; restart after 60s, three times).
 sc.exe failure $ServiceName reset= 86400 actions= restart/60000/restart/60000/restart/60000 | Out-Null
