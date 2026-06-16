@@ -14,7 +14,7 @@ namespace InfraWatch.Docs;
 public sealed class NetworkReport
 {
     private static readonly string[] PillarOrder =
-        ["HostNet", "Web", "Dns", "Dhcp", "Smb", "ActiveDirectory", "HyperV", "Veeam", "Imaging"];
+        ["HostNet", "Web", "Dns", "Dhcp", "Smb", "Print", "ActiveDirectory", "HyperV", "Veeam", "Imaging"];
 
     private static readonly MarkdownPipeline Pipeline =
         new MarkdownPipelineBuilder().UseAdvancedExtensions().Build();
@@ -154,6 +154,7 @@ public sealed class NetworkReport
         "Dns" => "DNS",
         "Dhcp" => "DHCP",
         "Smb" => "SMB / File",
+        "Print" => "Print Server",
         "ActiveDirectory" => "Active Directory",
         "HyperV" => "Hyper-V",
         "Veeam" => "Veeam",
@@ -176,6 +177,7 @@ public sealed class NetworkReport
         "backup" => "Backups (per machine)",
         "cert" => "TLS Certificates",
         "website" => "Web Sites",
+        "printer" => "Printers",
         "image" => "OS Images",
         "boot-file" => "Boot / Media Files",
         "file" => "Files",

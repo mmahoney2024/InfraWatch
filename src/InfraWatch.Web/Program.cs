@@ -4,6 +4,7 @@ using InfraWatch.Collectors.Dhcp;
 using InfraWatch.Collectors.Dns;
 using InfraWatch.Collectors.HostNet;
 using InfraWatch.Collectors.HyperV;
+using InfraWatch.Collectors.Print;
 using InfraWatch.Collectors.Imaging;
 using InfraWatch.Collectors.Smb;
 using InfraWatch.Collectors.Veeam;
@@ -49,6 +50,7 @@ builder.Services.AddDhcpCollector(builder.Configuration);
 builder.Services.AddImagingCollector(builder.Configuration);
 builder.Services.AddVeeamCollector(builder.Configuration);
 builder.Services.AddWebCollector(builder.Configuration);
+builder.Services.AddPrintCollector(builder.Configuration);
 builder.Services.AddJiraIntegration(builder.Configuration);
 
 var app = builder.Build();

@@ -41,6 +41,8 @@ Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "InfraWatch.Docs", "src\Infr
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "InfraWatch.Collectors.Web", "src\Collectors\InfraWatch.Collectors.Web\InfraWatch.Collectors.Web.csproj", "{835B7F38-09CF-40D6-82B2-8F56CBEB0B80}"
 EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "InfraWatch.Collectors.Print", "src\Collectors\InfraWatch.Collectors.Print\InfraWatch.Collectors.Print.csproj", "{11FC75BA-20C3-4FC5-B226-39C4D92B45CC}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
@@ -255,6 +257,18 @@ Global
 		{835B7F38-09CF-40D6-82B2-8F56CBEB0B80}.Release|x64.Build.0 = Release|Any CPU
 		{835B7F38-09CF-40D6-82B2-8F56CBEB0B80}.Release|x86.ActiveCfg = Release|Any CPU
 		{835B7F38-09CF-40D6-82B2-8F56CBEB0B80}.Release|x86.Build.0 = Release|Any CPU
+		{11FC75BA-20C3-4FC5-B226-39C4D92B45CC}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{11FC75BA-20C3-4FC5-B226-39C4D92B45CC}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{11FC75BA-20C3-4FC5-B226-39C4D92B45CC}.Debug|x64.ActiveCfg = Debug|Any CPU
+		{11FC75BA-20C3-4FC5-B226-39C4D92B45CC}.Debug|x64.Build.0 = Debug|Any CPU
+		{11FC75BA-20C3-4FC5-B226-39C4D92B45CC}.Debug|x86.ActiveCfg = Debug|Any CPU
+		{11FC75BA-20C3-4FC5-B226-39C4D92B45CC}.Debug|x86.Build.0 = Debug|Any CPU
+		{11FC75BA-20C3-4FC5-B226-39C4D92B45CC}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{11FC75BA-20C3-4FC5-B226-39C4D92B45CC}.Release|Any CPU.Build.0 = Release|Any CPU
+		{11FC75BA-20C3-4FC5-B226-39C4D92B45CC}.Release|x64.ActiveCfg = Release|Any CPU
+		{11FC75BA-20C3-4FC5-B226-39C4D92B45CC}.Release|x64.Build.0 = Release|Any CPU
+		{11FC75BA-20C3-4FC5-B226-39C4D92B45CC}.Release|x86.ActiveCfg = Release|Any CPU
+		{11FC75BA-20C3-4FC5-B226-39C4D92B45CC}.Release|x86.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE
@@ -278,5 +292,6 @@ Global
 		{C8954AB1-0682-4ADF-9B0C-207C7AA90FD4} = {2B1A7103-10B8-1CED-32B1-464281A82908}
 		{CF5DFB73-0B92-42D4-87AD-4D897C94151F} = {827E0CD3-B72D-47B6-A68D-7590B98EB39B}
 		{835B7F38-09CF-40D6-82B2-8F56CBEB0B80} = {2B1A7103-10B8-1CED-32B1-464281A82908}
+		{11FC75BA-20C3-4FC5-B226-39C4D92B45CC} = {2B1A7103-10B8-1CED-32B1-464281A82908}
 	EndGlobalSection
 EndGlobal

@@ -16,6 +16,7 @@
     <ProjectReference Include="..\Collectors\InfraWatch.Collectors.Veeam\InfraWatch.Collectors.Veeam.csproj" />
     <ProjectReference Include="..\InfraWatch.Docs\InfraWatch.Docs.csproj" />
     <ProjectReference Include="..\Collectors\InfraWatch.Collectors.Web\InfraWatch.Collectors.Web.csproj" />
+    <ProjectReference Include="..\Collectors\InfraWatch.Collectors.Print\InfraWatch.Collectors.Print.csproj" />
   </ItemGroup>
 
   <PropertyGroup>

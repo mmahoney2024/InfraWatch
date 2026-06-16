@@ -450,6 +450,7 @@ public static class DashboardRenderer
         "Veeam" => "Veeam",
         "Imaging" => "Imaging (SmartDeploy)",
         "Web" => "Web Servers",
+        "Print" => "Print Server",
         _ => pillar,
     };
 
