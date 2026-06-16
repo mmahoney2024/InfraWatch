@@ -7,6 +7,7 @@ using InfraWatch.Collectors.HyperV;
 using InfraWatch.Collectors.Imaging;
 using InfraWatch.Collectors.Smb;
 using InfraWatch.Collectors.Veeam;
+using InfraWatch.Collectors.Web;
 using InfraWatch.Core;
 using InfraWatch.Docs;
 using InfraWatch.Engine;
@@ -47,6 +48,7 @@ builder.Services.AddSmbCollector(builder.Configuration);
 builder.Services.AddDhcpCollector(builder.Configuration);
 builder.Services.AddImagingCollector(builder.Configuration);
 builder.Services.AddVeeamCollector(builder.Configuration);
+builder.Services.AddWebCollector(builder.Configuration);
 builder.Services.AddJiraIntegration(builder.Configuration);
 
 var app = builder.Build();

@@ -449,6 +449,7 @@ public static class DashboardRenderer
         "HyperV" => "Hyper-V",
         "Veeam" => "Veeam",
         "Imaging" => "Imaging (SmartDeploy)",
+        "Web" => "Web Servers",
         _ => pillar,
     };
 
