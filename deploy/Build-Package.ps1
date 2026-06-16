@@ -60,6 +60,7 @@ Write-Host "Wrote $localPath (Urls = http://*:$Port)."
 # --- Bundle the install scripts + README ---
 Copy-Item (Join-Path $deployDir "Install-InfraWatch.ps1")   $pkg
 Copy-Item (Join-Path $deployDir "Uninstall-InfraWatch.ps1") $pkg
+Copy-Item (Join-Path $deployDir "InfraWatch-Watchdog.ps1")  $pkg
 Copy-Item (Join-Path $deployDir "README-DEPLOY.md")         (Join-Path $pkg "README.md")
 
 # --- Zip ---

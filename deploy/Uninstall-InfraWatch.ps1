@@ -22,6 +22,13 @@ if ($svc) {
     Write-Host "Service '$ServiceName' not found - nothing to remove."
 }
 
+# Remove the watchdog scheduled task if present.
+$task = Get-ScheduledTask -TaskName "InfraWatch Watchdog" -ErrorAction SilentlyContinue
+if ($task) {
+    $task | Unregister-ScheduledTask -Confirm:$false
+    Write-Host "Removed scheduled task 'InfraWatch Watchdog'."
+}
+
 if ($RemoveFirewallRule) {
     Get-NetFirewallRule -DisplayName "InfraWatch Dashboard" -ErrorAction SilentlyContinue |
         Remove-NetFirewallRule

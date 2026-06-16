@@ -33,9 +33,24 @@ installed.
    ```
 
    You'll be prompted for the domain service account (e.g. `COMPASS-TAMU\svc-infrawatch`)
-   and its password. The script registers the service (auto-start + auto-restart), grants the
-   account write access to `data\`/`docs\`, opens TCP 8080 in the firewall, and starts it.
+   and its password. The password is **validated against the domain immediately** — if it's
+   wrong, you're told and asked to re-enter (it won't create a broken service). The script then
+   registers the service (auto-start + auto-restart), grants the account write access to
+   `data\`/`docs\`, opens TCP 8080 in the firewall, starts it, and **confirms the dashboard
+   responds** before finishing.
 4. Browse to `http://<server-name>:8080/`.
+
+### Down alerts (watchdog)
+
+The installer also registers a **scheduled task** ("InfraWatch Watchdog") that runs every 5
+minutes and emails if the service or dashboard goes down (and once when it recovers). It only
+mails on a state change, so you won't be spammed. Recipients come from `-AlertEmail`, else the
+`Alerting:Email:To` list in `appsettings.Local.json`, else it prompts (blank skips it). Mail is
+sent via the same relay the app uses. To add/replace it later, re-run install with
+`-AlertEmail you@sscserv.com`.
+
+> The service is also set to **auto-restart on crash** by Windows itself; the watchdog covers
+> the case where it stays down and a human needs to know.
 
 ## Verify
 
