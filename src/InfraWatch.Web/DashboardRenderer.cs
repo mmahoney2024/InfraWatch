@@ -98,6 +98,109 @@ public static class DashboardRenderer
         return sb.ToString();
     }
 
+    /// <summary>Incident history — downtime windows derived from health transitions
+    /// (Critical → Healthy). Same data the Teams alerts announce, as a browsable view.</summary>
+    public static string RenderIncidents(IReadOnlyList<IncidentRecord> incidents, int days, bool dark = false)
+    {
+        var sb = new StringBuilder();
+        OpenPage(sb, dark, "<a href=\"/\">Overview</a> › Incidents");
+        sb.Append($"<h2>Incidents &amp; downtime — last {days} days</h2>");
+
+        sb.Append("<div style=\"margin:6px 0 2px\">");
+        foreach (var d in new[] { 7, 30, 90 })
+            sb.Append(d == days
+                ? $"<span class=\"btn\" style=\"background:#255a96\">{d} days</span>"
+                : $"<a class=\"btn\" href=\"/incidents?days={d}\">{d} days</a>");
+        sb.Append("</div>");
+
+        if (incidents.Count == 0)
+        {
+            sb.Append("<div class=\"card muted\">No incidents in this window. 🎉</div>");
+            ClosePage(sb);
+            return sb.ToString();
+        }
+
+        var openNow = incidents.Where(i => i.IsOpen).ToList();
+        if (openNow.Count > 0)
+            sb.Append("<div class=\"alert\">⚠ Down or never recovered: ")
+              .Append(string.Join(" · ", openNow.Select(i =>
+                  $"{Enc(PillarName(i.Pillar))} — {Enc(i.Target)} (since {i.Start.ToLocalTime():MM-dd HH:mm})")))
+              .Append("</div>");
+
+        var closed = incidents.Where(i => !i.IsOpen).ToList();
+        var totalDown = TimeSpan.FromTicks(closed.Sum(i => i.Duration!.Value.Ticks));
+        var longest = closed.OrderByDescending(i => i.Duration).FirstOrDefault();
+        var worst = incidents.GroupBy(i => i.Target).OrderByDescending(g => g.Count()).First();
+
+        sb.Append("<div class=\"stats\">");
+        Stat(sb, incidents.Count, "Incidents");
+        sb.Append($"<div class=\"stat\"><div class=\"n\">{Enc(FmtDur(totalDown))}</div><div class=\"l\">Total downtime</div></div>");
+        if (longest is not null)
+            sb.Append($"<div class=\"stat\"><div class=\"n\">{Enc(FmtDur(longest.Duration!.Value))}</div><div class=\"l\">Longest — {Enc(longest.Target)}</div></div>");
+        sb.Append($"<div class=\"stat\"><div class=\"n\">{worst.Count()}</div><div class=\"l\">Most incidents — {Enc(worst.Key)}</div></div>");
+        sb.Append("</div>");
+
+        // Downtime by pillar — CSS bars, no JS.
+        var byPillar = closed.GroupBy(i => i.Pillar)
+            .Select(g => (Pillar: g.Key, Down: TimeSpan.FromTicks(g.Sum(i => i.Duration!.Value.Ticks)), Count: g.Count()))
+            .OrderByDescending(x => x.Down).ToList();
+        if (byPillar.Count > 0)
+        {
+            var max = byPillar[0].Down.TotalMinutes;
+            sb.Append("<h2>Downtime by pillar</h2><div class=\"card\"><table>");
+            foreach (var (pillar, down, count) in byPillar)
+            {
+                var pct = max > 0 ? Math.Max(1, down.TotalMinutes / max * 100) : 1;
+                sb.Append("<tr>")
+                  .Append($"<td class=\"k\" style=\"width:160px\"><a href=\"/pillar?name={Esc(pillar)}\">{Enc(PillarName(pillar))}</a></td>")
+                  .Append($"<td style=\"width:120px\">{Enc(FmtDur(down))}</td>")
+                  .Append($"<td class=\"muted\" style=\"width:90px\">{count}×</td>")
+                  .Append($"<td><div style=\"background:var(--crit);height:10px;border-radius:5px;width:{pct:F0}%\"></div></td>")
+                  .Append("</tr>");
+            }
+            sb.Append("</table></div>");
+        }
+
+        var maxDur = closed.Count > 0 ? closed.Max(i => i.Duration!.Value.TotalMinutes) : 1;
+        sb.Append("<h2>All incidents</h2><div class=\"card\"><table>")
+          .Append("<tr><th>Start</th><th>End</th><th>Duration</th><th></th><th>Pillar</th><th>Target</th><th>Check</th><th>Error</th></tr>");
+        foreach (var i in incidents)
+        {
+            var checkUrl = $"/check?pillar={Esc(i.Pillar)}&target={Esc(i.Target)}&check={Esc(i.Check)}";
+            sb.Append("<tr>")
+              .Append($"<td class=\"muted\">{i.Start.ToLocalTime():MM-dd HH:mm}</td>");
+            if (i.End is { } end)
+            {
+                var dur = i.Duration!.Value;
+                var pct = Math.Max(2, dur.TotalMinutes / maxDur * 100);
+                var color = dur.TotalMinutes >= 60 ? "var(--crit)" : "var(--warn)";
+                sb.Append($"<td class=\"muted\">{end.ToLocalTime():MM-dd HH:mm}</td>")
+                  .Append($"<td style=\"white-space:nowrap\"><b>{Enc(FmtDur(dur))}</b></td>")
+                  .Append($"<td style=\"min-width:90px\"><div style=\"background:{color};height:8px;border-radius:4px;width:{pct:F0}%\"></div></td>");
+            }
+            else
+            {
+                sb.Append("<td><span class=\"pill crit\">not recovered</span></td><td>—</td><td></td>");
+            }
+            sb.Append($"<td>{Enc(PillarName(i.Pillar))}</td>")
+              .Append($"<td class=\"k\"><a href=\"{Enc(checkUrl)}\">{Enc(i.Target)}</a></td>")
+              .Append($"<td>{Enc(i.Check)}</td>")
+              .Append($"<td class=\"muted\">{Enc(Trunc(i.Error ?? "", 90))}</td>")
+              .Append("</tr>");
+        }
+        sb.Append("</table></div>")
+          .Append("<div class=\"muted\" style=\"margin-top:8px;font-size:12px\">Derived from health history: an incident opens when a check enters Critical and closes when it returns to Healthy — the same transitions that drive Teams alerts. &quot;Not recovered&quot; means no Healthy sample followed (still down, or the check was removed/renamed).</div>");
+
+        ClosePage(sb);
+        return sb.ToString();
+    }
+
+    private static string FmtDur(TimeSpan t) =>
+        t.TotalMinutes >= 1440 ? $"{(int)t.TotalDays}d {t.Hours}h"
+        : t.TotalMinutes >= 60 ? $"{(int)t.TotalHours}h {t.Minutes:D2}m"
+        : t.TotalMinutes >= 1  ? $"{(int)t.TotalMinutes} min"
+        : $"{(int)t.TotalSeconds}s";
+
     /// <summary>Drill 1: one pillar's targets (servers/endpoints), each rolled up and
     /// linking to its own detail page. Inventory (documentation) follows.</summary>
     public static string RenderPillar(
@@ -308,6 +411,7 @@ public static class DashboardRenderer
         var now = DateTimeOffset.Now.ToString("yyyy-MM-dd HH:mm:ss");
         sb.Append($"<header><h1><a href=\"/\">InfraWatch</a></h1><span class=\"sub\">one pane of glass · generated {now} · auto-refresh 30s</span>");
         sb.Append("<span class=\"nav\">");
+        sb.Append("<a class=\"navlink\" href=\"/incidents\">⏱ Incidents</a>");
         sb.Append("<a class=\"navlink\" href=\"/docs\">📄 Docs</a>");
         if (!string.IsNullOrWhiteSpace(ConfluenceHubUrl))
             sb.Append($"<a class=\"navlink\" href=\"{Enc(ConfluenceHubUrl)}\" target=\"_blank\" rel=\"noopener\">📚 Confluence ↗</a>");

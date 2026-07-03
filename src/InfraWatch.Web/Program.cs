@@ -111,6 +111,20 @@ app.MapGet("/check", async (string pillar, string target, string check, HttpCont
     return Results.Content(DashboardRenderer.RenderCheck(pillar, target, check, history, IsDark(http)), "text/html");
 });
 
+// Incident history — downtime windows derived from health transitions (Critical → Healthy).
+app.MapGet("/incidents", async (int? days, HttpContext http, IStore store) =>
+{
+    var d = Math.Clamp(days ?? 30, 1, 365);
+    var incidents = await store.GetIncidentsAsync(DateTimeOffset.UtcNow.AddDays(-d));
+    return Results.Content(DashboardRenderer.RenderIncidents(incidents, d, IsDark(http)), "text/html");
+});
+
+app.MapGet("/api/incidents", async (int? days, IStore store) =>
+{
+    var d = Math.Clamp(days ?? 30, 1, 365);
+    return Results.Json(await store.GetIncidentsAsync(DateTimeOffset.UtcNow.AddDays(-d)));
+});
+
 // Machine-readable state, handy for debugging / a future SPA.
 app.MapGet("/api/state", async (IStore store, JiraSnapshotCache jira) =>
 {

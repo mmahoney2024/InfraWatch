@@ -367,6 +367,74 @@ public sealed class SqliteStore : IStore
         return rows.Select(MapHealth).ToList();
     }
 
+    /// <summary>
+    /// Derives downtime windows from the append-only health history. A window function pulls
+    /// only the rows where a check's status <em>changed</em> (cheap even with months of
+    /// per-minute samples); a linear walk then pairs each entry into Critical with the first
+    /// return to Healthy. Mirrors <c>AlertEvaluator</c> semantics exactly: Warning/Unknown
+    /// samples neither open nor close an incident, and repeated Criticals don't re-open.
+    /// </summary>
+    public async Task<IReadOnlyList<IncidentRecord>> GetIncidentsAsync(
+        DateTimeOffset since, CancellationToken cancellationToken = default)
+    {
+        await using var conn = Open();
+        var rows = await conn.QueryAsync<TransitionRow>(
+            """
+            SELECT pillar, target, check_name, status, summary, ts FROM (
+                SELECT id, pillar, target, check_name, status, summary, ts,
+                       LAG(status) OVER (PARTITION BY pillar, target, check_name ORDER BY id) AS prev
+                FROM health
+                WHERE ts >= @since
+            )
+            WHERE prev IS NULL OR status <> prev
+            ORDER BY id;
+            """, new { since = Iso(since) });
+
+        var open = new Dictionary<(string Pillar, string Target, string Check), (DateTimeOffset Start, string? Error)>();
+        var incidents = new List<IncidentRecord>();
+
+        foreach (var r in rows)
+        {
+            var key = (r.Pillar, r.Target, r.CheckName);
+            var status = (HealthStatus)r.Status;
+            var ts = DateTimeOffset.Parse(r.Ts, null, System.Globalization.DateTimeStyles.RoundtripKind);
+
+            if (status == HealthStatus.Critical)
+            {
+                if (!open.ContainsKey(key))
+                    open[key] = (ts, r.Summary);
+            }
+            else if (status == HealthStatus.Healthy && open.Remove(key, out var o))
+            {
+                incidents.Add(new IncidentRecord
+                {
+                    Pillar = r.Pillar, Target = r.Target, Check = r.CheckName,
+                    Error = o.Error, Start = o.Start, End = ts,
+                });
+            }
+        }
+
+        // Anything still open is an ongoing (or never-recovered) incident.
+        foreach (var (key, o) in open)
+            incidents.Add(new IncidentRecord
+            {
+                Pillar = key.Pillar, Target = key.Target, Check = key.Check,
+                Error = o.Error, Start = o.Start, End = null,
+            });
+
+        return incidents.OrderByDescending(i => i.Start).ToList();
+    }
+
+    private sealed class TransitionRow
+    {
+        public string Pillar { get; set; } = "";
+        public string Target { get; set; } = "";
+        public string CheckName { get; set; } = "";
+        public int Status { get; set; }
+        public string? Summary { get; set; }
+        public string Ts { get; set; } = "";
+    }
+
     public async Task<IReadOnlyList<InventoryRecord>> GetLatestInventoryAsync(
         string pillar, CancellationToken cancellationToken = default)
     {

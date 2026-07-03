@@ -28,4 +28,9 @@ public interface IStore
     /// <summary>Recent inventory drift events (items added/removed), newest first.</summary>
     Task<IReadOnlyList<ChangeRecord>> GetRecentChangesAsync(
         int limit = 200, CancellationToken cancellationToken = default);
+
+    /// <summary>Downtime windows derived from health history (Critical → Healthy transitions),
+    /// newest first. Incidents still down have a null <see cref="IncidentRecord.End"/>.</summary>
+    Task<IReadOnlyList<IncidentRecord>> GetIncidentsAsync(
+        DateTimeOffset since, CancellationToken cancellationToken = default);
 }
